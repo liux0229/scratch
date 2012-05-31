@@ -154,7 +154,7 @@ bool Solver::enumerate(long long d, int nextPrime)
 		return true;
 	}
 
-	for (int i = nextPrime; i < static_cast<int>(primes_.size()); i++)
+	for (int i = nextPrime; i < static_cast<int>(primes_.size()) && primes_[i].first <= d; i++)
 	{
 		long long current = d;
 		long long p = primes_[i].first;
