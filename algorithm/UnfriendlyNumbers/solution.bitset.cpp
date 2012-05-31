@@ -9,7 +9,7 @@ using namespace std;
 class BitSet
 {
 	typedef unsigned int ElementType;
-	const static size_t ElementSize = sizeof(ElementType);
+	const static size_t ElementSize = sizeof(ElementType) * 8;
 public:
 	// creates a bit set which can hold bit flags for [0,n)
 	BitSet(int n)
