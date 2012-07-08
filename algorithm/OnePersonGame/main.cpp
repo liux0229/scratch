@@ -66,6 +66,9 @@ private:
 int grid[N][N];
 int n, m;
 vector<Entry> states[2][S];
+int sr, sc, er, ec;
+vector<Entry> *Prev;
+vector<Entry> *Next;
 
 int dirs[][2] = {
    { 0, 0 },
@@ -81,41 +84,12 @@ void init(vector<Entry> *s)
       s[i].clear();
 }
 
-void expand(int (*choice)[2], int r, int c, vector<Entry> *prev, vector<Entry> *next, int sr, int sc, int er, int ec)
+void expand(int (*choice)[2], int r, int c, int from, int to, int totalScore)
 {
    if (r == n)
    {
-      int from = 0;
-      int to = 0;
-      int totalScore = 0;
-      for (int i = 0; i < n; i++)
-      {
-         if (choice[i][0] != 0 || choice[i][1] != 0) totalScore += grid[i][c];
-
-         int fromBit = 0;
-         int toBit = 0;
-         if (choice[i][0] == 1)
-         {
-            fromBit = 1;
-         }
-         else if (choice[i][1] == 2)
-         {
-            fromBit = 2;
-         }
-
-         if (choice[i][0] == 2)
-         {
-            toBit = 2;
-         }
-         else if (choice[i][1] == 1)
-         {
-            toBit = 1;
-         }
-         from = from * 3 + fromBit;
-         to = to * 3 + toBit;
-      }
-      vector<Entry> const& parents = prev[from];
-      vector<Entry> & current = next[to];
+      vector<Entry> const& parents = Prev[from];
+      vector<Entry> & current = Next[to];
       for (size_t i = 0; i < parents.size(); i++)
       {
          int currentScore = parents[i].score + totalScore;
@@ -188,9 +162,21 @@ void expand(int (*choice)[2], int r, int c, vector<Entry> *prev, vector<Entry> *
          if (r > 0 && 
              (choice[r - 1][0] == 3 && k != 3 || choice[r - 1][1] == 4))
             continue;
-
          choice[r][1] = k;
-         expand(choice, r + 1, c, prev, next, sr, sc, er, ec);
+
+         int fromBit = 0;
+         int toBit = 0;
+
+         if (k == 2)
+         {
+            fromBit = 2;
+         }
+         if (k == 1)
+         {
+            toBit = 1;
+         }
+
+         expand(choice, r + 1, c, from * 3 + fromBit, to * 3 + toBit, totalScore + grid[r][c]);
       }
    }
    else if (r == er && c == ec)
@@ -204,59 +190,83 @@ void expand(int (*choice)[2], int r, int c, vector<Entry> *prev, vector<Entry> *
              (choice[r - 1][0] == 3 || choice[r - 1][1] == 4 && k != 4))
             continue;
          choice[r][0] = k;
-         expand(choice, r + 1, c, prev, next, sr, sc, er, ec);
+
+         int fromBit = 0;
+         int toBit = 0;
+
+         if (k == 1)
+         {
+            fromBit = 1;
+         }
+         if (k == 2)
+         {
+            toBit = 2;
+         }
+
+         expand(choice, r + 1, c, from * 3 + fromBit, to * 3 + toBit, totalScore + grid[r][c]);
       }
    }
    else
    {
       for (int k = 0; k < ndirs; k++)
       {  
-         if (k > 0 && grid[r][c] == 0) continue;
+         if (grid[r][c] == 0 && k > 0) break; 
 
-         if (k == 0)
+         if (r > 0 && 
+            (choice[r - 1][0] == 3 && dirs[k][1] != 3 || choice[r - 1][1] == 4 && dirs[k][0] != 4))
+            continue;
+         if (dirs[k][0] == 4 && (r == 0 || choice[r - 1][1] != 4)) continue;
+         if (dirs[k][1] == 3 && (r == 0 || choice[r - 1][0] != 3)) continue;
+         if (dirs[k][1] == 4 && r == n - 1) continue;
+         if (dirs[k][0] == 3 && r == n - 1) continue;
+
+         choice[r][0] = dirs[k][0];
+         choice[r][1] = dirs[k][1];
+
+         int fromBit = 0;
+         int toBit = 0;
+
+         if (choice[r][0] == 1)
          {
-            if (r > 0 && (choice[r - 1][0] == 3 || choice[r - 1][1] == 4)) continue;
-            choice[r][0] = 0;
-            choice[r][1] = 0;
+            fromBit = 1;
          }
-         else
+         else if (choice[r][1] == 2)
          {
-            if (r > 0 && 
-                (choice[r - 1][0] == 3 && dirs[k][1] != 3 || choice[r - 1][1] == 4 && dirs[k][0] != 4))
-                continue;
-            if (dirs[k][0] == 4 && (r == 0 || choice[r - 1][1] != 4)) continue;
-            if (dirs[k][1] == 3 && (r == 0 || choice[r - 1][0] != 3)) continue;
-            if (dirs[k][1] == 4 && r == n - 1) continue;
-            if (dirs[k][0] == 3 && r == n - 1) continue;
-         
-            choice[r][0] = dirs[k][0];
-            choice[r][1] = dirs[k][1];
+            fromBit = 2;
+         }
+         if (choice[r][0] == 2)
+         {
+            toBit = 2;
+         }
+         else if (choice[r][1] == 1)
+         {
+            toBit = 1;
          }
 
-         expand(choice, r + 1, c, prev, next, sr, sc, er, ec);
+         expand(choice, r + 1, c, from * 3 + fromBit, to * 3 + toBit, k == 0 ? totalScore : totalScore + grid[r][c]);
       }
    }
 }
 
-int solve(int sr, int sc, int er, int ec)
+int solveInternal()
 {
    init(states[0]);
    states[0][0].push_back(Entry(0, 0));
 
-   vector<Entry> *prev = states[0];
-   vector<Entry> *next = states[1];
+   Prev = states[0];
+   Next = states[1];
    for (int c = m - 1; c >= 0; c--)
    {
-      init(next);
+      init(Next);
 
       int choice[N][2];
-      expand(choice, 0, c, prev, next, sr, sc, er, ec);
+      expand(choice, 0, c, 0, 0, 0);
 
-      swap(prev, next);
+      swap(Prev, Next);
    }
 
-   assert(prev[0].size() <= 1);
-   return prev[0].empty() ? 0 : prev[0][0].score;
+   assert(Prev[0].size() <= 1);
+   return Prev[0].empty() ? 0 : Prev[0][0].score;
 }
 
 int solve()
@@ -277,8 +287,12 @@ int solve()
                if (grid[a][b] == 0) continue;
                if (i * m + j < a * m + b)
                {
-                  int result = solve(i, j, a, b);
-                  printf("maxi=%d (%d %d %d %d)\n", result, i, j, a, b);
+                  sr = i;
+                  sc = j;
+                  er = a;
+                  ec = b;
+                  int result = solveInternal();
+                  //printf("maxi=%d (%d %d %d %d)\n", result, i, j, a, b);
                   maxi = max(maxi, result);
                }
             }
