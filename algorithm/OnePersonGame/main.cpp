@@ -20,7 +20,7 @@ public:
 };
 
 const int N = 7;
-const int S = PowerGenerator<3, 7>::value * 3;
+const int S = PowerGenerator<3, N>::value * 3;
 
 struct Entry
 {
