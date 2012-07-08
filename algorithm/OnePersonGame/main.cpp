@@ -1,3 +1,4 @@
+#if 0
 #include <cstdio>
 #include <cstring>
 #include <cassert>
@@ -6,7 +7,7 @@
 using namespace std;
 
 const int N = 7;
-const int S = 2187;
+const int S = 2187 * 3; // 3^7 * 3
 
 struct Entry
 {
@@ -66,7 +67,6 @@ private:
 int grid[N][N];
 int n, m;
 vector<Entry> states[2][S];
-int sr, sc, er, ec;
 vector<Entry> *Prev;
 vector<Entry> *Next;
 
@@ -74,7 +74,11 @@ int dirs[][2] = {
    { 0, 0 },
    { 1, 1 }, { 2, 2 }, { 3, 3 }, { 4, 4 },
    { 3, 1 }, { 4, 1 }, { 2, 4 }, { 2, 3 },
-   { 3, 2 }, { 4, 2 }, { 1, 4 }, { 1, 3 }
+   { 3, 2 }, { 4, 2 }, { 1, 4 }, { 1, 3 },
+   // ends
+   { 1, 0 }, { 2, 0 }, { 3, 0 }, { 4, 0 },
+   // starts
+   { 0, 1 }, { 0, 2 }, { 0, 3 }, { 0, 4 },
 };
 const int ndirs = sizeof(dirs) / sizeof(*dirs);
 
@@ -84,167 +88,144 @@ void init(vector<Entry> *s)
       s[i].clear();
 }
 
-void expand(int (*choice)[2], int r, int c, int from, int to, int totalScore)
+void expand(int (*choice)[2], int r, int c, int from, int to, int totalScore, int stage, int mask)
 {
    if (r == n)
    {
-      vector<Entry> const& parents = Prev[from];
-      vector<Entry> & current = Next[to];
-      for (size_t i = 0; i < parents.size(); i++)
+      from *= 3;
+      to *= 3;
+      int fromStart = 0, fromEnd = 2;
+      if ((stage & 0x1) > 0)
       {
-         int currentScore = parents[i].score + totalScore;
+         // can only accept states with no start or end
+         fromEnd = 0;
+      }
+      else if (stage == 0x2)
+      {
+         // has end in the column but no start, can only accept states with start (only)
+         fromStart = 1;
+         fromEnd = 1;
+      }
 
-         Entry const& fromEntry = parents[i];
-         DisjointSet groups(n);
-         int mask = 0;
-         bool invalid = false;
-         for (int j = 0; j < n; j++)
+      int toAdd = 0;
+      if ((stage & 0x2) > 0) toAdd = 2;
+      else if (stage == 0x1) toAdd = 1;
+
+      for (int fromAdd = fromStart; fromAdd <= fromEnd; fromAdd++)
+      {
+         vector<Entry> const& parents = Prev[from + fromAdd];
+         
+         for (size_t i = 0; i < parents.size(); i++)
          {
-            if (choice[j][0] == 4) 
+            int currentScore = parents[i].score + totalScore;
+
+            Entry const& fromEntry = parents[i];
+            DisjointSet groups(n);
+            bool invalid = false;
+            for (int j = 0; j < n; j++)
             {
-               groups.Union(j, j - 1);
-            }
-            if (choice[j][0] == 1 || choice[j][1] == 2)
-            {
-               mask |= 1 << j;
-               // find out whether the rhs has connected to anything above it
-               int rhs = (fromEntry.groups >> j * 2) & 0x3;
-               int connected = -1;
-               for (int k = j - 1; k >= 0; k--)
+               if (choice[j][0] == 4 || choice[j][1] == 3) 
                {
-                  if (choice[k][0] == 1 || choice[k][1] == 2)
+                  groups.Union(j, j - 1);
+               }
+               if (choice[j][0] == 1 || choice[j][1] == 2)
+               {
+                  // find out whether the rhs has connected to anything above it
+                  int rhs = (fromEntry.groups >> j * 2) & 0x3;
+                  int connected = -1;
+                  for (int k = j - 1; k >= 0; k--)
                   {
-                     if (((fromEntry.groups >> k * 2) & 0x3) == rhs)
+                     if (choice[k][0] == 1 || choice[k][1] == 2)
                      {
-                        connected = k;
-                        break;
+                        if (((fromEntry.groups >> k * 2) & 0x3) == rhs)
+                        {
+                           connected = k;
+                           break;
+                        }
                      }
                   }
-               }
-               if (connected != -1) 
-               {
-                  invalid |= !groups.Union(connected, j);
-                  // this forms a closed loop, which is not allowed
-                  if (invalid) break;
+                  if (connected != -1) 
+                  {
+                     invalid |= !groups.Union(connected, j);
+                     // this forms a closed loop, which is an invalid formation
+                     if (invalid) break;
+                  }
+                  // else rhs does not connect to anything above it
                }
             }
-         }
-         
-         if (invalid) continue;
 
-         short toGroups = groups.Normalize(n, mask);
-         bool fnd = false;
-         for (size_t j = 0; j < current.size(); j++)
-         {
-            if (current[j].groups == toGroups)
+            if (invalid) continue;
+
+            toAdd = max(toAdd, fromAdd);
+            vector<Entry> & current = Next[to + toAdd];
+            short toGroups = groups.Normalize(n, mask);
+            bool fnd = false;
+            for (size_t j = 0; j < current.size(); j++)
             {
-               current[j].score = max(current[j].score, currentScore);
-               fnd = true;
-               break;
+               if (current[j].groups == toGroups)
+               {
+                  current[j].score = max(current[j].score, currentScore);
+                  fnd = true;
+                  break;
+               }
             }
-         }
-         if (!fnd)
-         {
-            current.push_back(Entry(toGroups, currentScore));
+            if (!fnd)
+            {
+               current.push_back(Entry(toGroups, currentScore));
+            }
          }
       }
 
       return;
    }
 
-   if (r == sr && c == sc)
-   {
-      choice[r][0] = 0;
-      for (int k = 1; k <= 4; k++)
+   for (int k = 0; k < ndirs; k++)
+   {  
+      if (grid[r][c] == 0 && k > 0) break; 
+      if (stage == 1 && dirs[k][0] == 0 && k > 0) break;
+      if ((stage & 0x2) > 0 && dirs[k][1] == 0 && k > 0) break;
+
+      if (r > 0 && 
+         (choice[r - 1][0] == 3 && dirs[k][1] != 3 || choice[r - 1][1] == 4 && dirs[k][0] != 4))
+         continue;
+      if (dirs[k][0] == 4 && (r == 0 || choice[r - 1][1] != 4)) continue;
+      if (dirs[k][1] == 3 && (r == 0 || choice[r - 1][0] != 3)) continue;
+      if (dirs[k][1] == 4 && r == n - 1) continue;
+      if (dirs[k][0] == 3 && r == n - 1) continue;
+
+      choice[r][0] = dirs[k][0];
+      choice[r][1] = dirs[k][1];
+
+      int fromBit = 0;
+      int toBit = 0;
+
+      if (choice[r][0] == 1)
       {
-         if (k == 3 && (r == 0 || choice[r - 1][0] != 3)) continue;
-         if (k == 4 && r == n - 1) continue;
-         if (r > 0 && 
-             (choice[r - 1][0] == 3 && k != 3 || choice[r - 1][1] == 4))
-            continue;
-         choice[r][1] = k;
-
-         int fromBit = 0;
-         int toBit = 0;
-
-         if (k == 2)
-         {
-            fromBit = 2;
-         }
-         if (k == 1)
-         {
-            toBit = 1;
-         }
-
-         expand(choice, r + 1, c, from * 3 + fromBit, to * 3 + toBit, totalScore + grid[r][c]);
+         fromBit = 1;
       }
-   }
-   else if (r == er && c == ec)
-   {
-      choice[r][1] = 0;
-      for (int k = 1; k <= 4; k++)
+      else if (choice[r][1] == 2)
       {
-         if (k == 4 && (r == 0 || choice[r - 1][1] != 4)) continue;
-         if (k == 3 && r == n - 1) continue;
-         if (r > 0 && 
-             (choice[r - 1][0] == 3 || choice[r - 1][1] == 4 && k != 4))
-            continue;
-         choice[r][0] = k;
-
-         int fromBit = 0;
-         int toBit = 0;
-
-         if (k == 1)
-         {
-            fromBit = 1;
-         }
-         if (k == 2)
-         {
-            toBit = 2;
-         }
-
-         expand(choice, r + 1, c, from * 3 + fromBit, to * 3 + toBit, totalScore + grid[r][c]);
+         fromBit = 2;
       }
-   }
-   else
-   {
-      for (int k = 0; k < ndirs; k++)
-      {  
-         if (grid[r][c] == 0 && k > 0) break; 
-
-         if (r > 0 && 
-            (choice[r - 1][0] == 3 && dirs[k][1] != 3 || choice[r - 1][1] == 4 && dirs[k][0] != 4))
-            continue;
-         if (dirs[k][0] == 4 && (r == 0 || choice[r - 1][1] != 4)) continue;
-         if (dirs[k][1] == 3 && (r == 0 || choice[r - 1][0] != 3)) continue;
-         if (dirs[k][1] == 4 && r == n - 1) continue;
-         if (dirs[k][0] == 3 && r == n - 1) continue;
-
-         choice[r][0] = dirs[k][0];
-         choice[r][1] = dirs[k][1];
-
-         int fromBit = 0;
-         int toBit = 0;
-
-         if (choice[r][0] == 1)
-         {
-            fromBit = 1;
-         }
-         else if (choice[r][1] == 2)
-         {
-            fromBit = 2;
-         }
-         if (choice[r][0] == 2)
-         {
-            toBit = 2;
-         }
-         else if (choice[r][1] == 1)
-         {
-            toBit = 1;
-         }
-
-         expand(choice, r + 1, c, from * 3 + fromBit, to * 3 + toBit, k == 0 ? totalScore : totalScore + grid[r][c]);
+      if (choice[r][0] == 2)
+      {
+         toBit = 2;
       }
+      else if (choice[r][1] == 1)
+      {
+         toBit = 1;
+      }
+
+      int nextStage = stage;
+      if (dirs[k][0] == 0 && k > 0) nextStage |= 0x1;
+      else if (dirs[k][1] == 0 && k > 0) nextStage |= 0x2;
+
+      int nextMask = mask;
+      if (choice[r][1] == 1 || choice[r][0] == 2)
+      {
+         nextMask |= 1 << r;
+      }
+      expand(choice, r + 1, c, from * 3 + fromBit, to * 3 + toBit, k == 0 ? totalScore : totalScore + grid[r][c], nextStage, nextMask);
    }
 }
 
@@ -260,13 +241,13 @@ int solveInternal()
       init(Next);
 
       int choice[N][2];
-      expand(choice, 0, c, 0, 0, 0);
+      expand(choice, 0, c, 0, 0, 0, 0, 0);
 
       swap(Prev, Next);
    }
 
-   assert(Prev[0].size() <= 1);
-   return Prev[0].empty() ? 0 : Prev[0][0].score;
+   assert(Prev[2].size() <= 1);
+   return Prev[2].empty() ? 0 : Prev[2][0].score;
 }
 
 int solve()
@@ -276,29 +257,11 @@ int solve()
    {
       for (int j = 0; j < m; j++)
       {
-         if (grid[i][j] == 0) continue;
          // one step case
          maxi = max(maxi, grid[i][j]);
-
-         for (int a = 0; a < n; a++)
-         {
-            for (int b = 0; b < m; b++)
-            {
-               if (grid[a][b] == 0) continue;
-               if (i * m + j < a * m + b)
-               {
-                  sr = i;
-                  sc = j;
-                  er = a;
-                  ec = b;
-                  int result = solveInternal();
-                  //printf("maxi=%d (%d %d %d %d)\n", result, i, j, a, b);
-                  maxi = max(maxi, result);
-               }
-            }
-         }
       }
    }
+   maxi = max(maxi, solveInternal());
    return maxi;
 }
 
@@ -311,7 +274,10 @@ int main()
       scanf("%d %d", &n, &m);
       for (int i = 0; i < n; i++)
       for (int j = 0; j < m; j++)
+      {
          scanf("%d", grid[i] + j);
+      }
       printf("%d\n", solve());
    }
 }
+#endif
