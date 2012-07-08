@@ -1,4 +1,3 @@
-#if 0
 #include <cstdio>
 #include <cstring>
 #include <cassert>
@@ -6,14 +5,28 @@
 #include <algorithm>
 using namespace std;
 
+template<int base, int power>
+class PowerGenerator
+{
+public:
+   static const int value = PowerGenerator<base, power - 1>::value * base;
+};
+
+template<int base>
+class PowerGenerator<base, 0>
+{
+public:
+   static const int value = 1;
+};
+
 const int N = 7;
-const int S = 2187 * 3; // 3^7 * 3
+const int S = PowerGenerator<3, 7>::value * 3;
 
 struct Entry
 {
 public:
-   Entry(short g, int s) : groups(g), score(s) { }
-   short groups;
+   Entry(int g, int s) : groups(g), score(s) { }
+   int groups;
    int score;
 };
 
@@ -41,12 +54,12 @@ public:
       s_[rb] = ra;
       return true;
    }
-   short Normalize(int n, int mask)
+   int Normalize(int n, int mask)
    {
       int groups[N];
       memset(groups, -1, sizeof(*groups) * n);
       int next = 0;
-      short result = 0;
+      int result = 0;
       for (int i = 0; i < n; i++)
       {
          if (!(mask & 1 << i)) continue;
@@ -158,7 +171,7 @@ void expand(int (*choice)[2], int r, int c, int from, int to, int totalScore, in
 
             toAdd = max(toAdd, fromAdd);
             vector<Entry> & current = Next[to + toAdd];
-            short toGroups = groups.Normalize(n, mask);
+            int toGroups = groups.Normalize(n, mask);
             bool fnd = false;
             for (size_t j = 0; j < current.size(); j++)
             {
@@ -280,4 +293,3 @@ int main()
       printf("%d\n", solve());
    }
 }
-#endif

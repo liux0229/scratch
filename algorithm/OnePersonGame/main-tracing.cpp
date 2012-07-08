@@ -1,4 +1,3 @@
-#if 1
 #include <cstdio>
 #include <cstring>
 #include <cassert>
@@ -321,4 +320,3 @@ int main()
       printf("%d\n", solve());
    }
 }
-#endif
