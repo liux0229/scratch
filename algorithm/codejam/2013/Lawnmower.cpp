@@ -1,5 +1,3 @@
-#if 0
-
 #include <cstdio>
 #include <algorithm>
 using namespace std;
@@ -57,4 +55,3 @@ int main()
 	}
 }
 
-#endif

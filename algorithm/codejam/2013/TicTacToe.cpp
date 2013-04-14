@@ -1,5 +1,3 @@
-#if 0
-
 #include <cstdio>
 
 const int N = 4;
@@ -78,4 +76,3 @@ int main()
 	}
 }
 
-#endif

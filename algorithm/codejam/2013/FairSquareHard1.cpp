@@ -1,5 +1,3 @@
-#if 0
-
 #include <cstdio>
 #include <cstring>
 #include <cmath>
@@ -68,4 +66,3 @@ int main()
 	}
 }
 
-#endif
