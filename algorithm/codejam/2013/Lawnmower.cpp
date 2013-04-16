@@ -1,5 +1,8 @@
 #include <cstdio>
 #include <algorithm>
+
+namespace Lawnmower {
+
 using namespace std;
 
 const int N = 100;
@@ -53,5 +56,7 @@ int main()
 		bool ret = solve();
 		printf("%s\n", ret ? "YES" : "NO");
 	}
+	return 0;
 }
 
+}

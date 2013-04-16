@@ -1,6 +1,9 @@
 #include <cstdio>
 #include <cstring>
 #include <cmath>
+
+namespace FairSquareHard1 {
+
 using namespace std;
 
 const int N = 105;
@@ -64,5 +67,7 @@ int main()
 		long long ret = solve(a, b);
 		printf("%lld\n", ret);
 	}
+	return 0;
 }
 
+}

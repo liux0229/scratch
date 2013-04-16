@@ -1,5 +1,7 @@
 #include <cstdio>
 
+namespace TicTacToe {
+
 const int N = 4;
 
 char B[N][N + 1];
@@ -74,5 +76,7 @@ int main()
 		solve();
 		printf("\n");
 	}
+	return 0;
 }
 
+}

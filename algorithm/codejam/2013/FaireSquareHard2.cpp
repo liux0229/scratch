@@ -3,6 +3,9 @@
 #include <cmath>
 #include <string>
 #include <queue>
+
+namespace FairSquareHard2 {
+
 using namespace std;
 
 const int N = 105;
@@ -119,5 +122,9 @@ int main()
 		long long ret = solve(a, b);
 		printf("%lld\n", ret);
 	}
+	return 0;
 }
+
+}
+
 
