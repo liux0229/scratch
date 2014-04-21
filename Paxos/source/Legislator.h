@@ -1,48 +1,34 @@
 #pragma once
 
-struct Decree {
-  size_t value;
-};
+#include "Messages.h"
 
-class Legislator;
-struct Message {
-  virtual ~Message();
-  virtual void deliver(Legislator& legislator) = 0;
-};
+#include <memory>
+#include <vector>
 
-struct NextBallotMessage : Message {
-  virtual void deliver(Legislator& legislator);
-};
+namespace Paxos {
 
-struct LastVoteMessage : Message {
-  virtual void deliver(Legislator& legislator);
-};
+  class Chamber;
+  class Legislator {
+  public:
+    ~Legislator() { }
+    LegislatorId id() const { return id_; }
 
-struct BeginBallotMessage : Message {
-  virtual void deliver(Legislator& legislator);
-};
+    virtual void process(const NextBallotMessage& nextBallot) = 0;
+    virtual void process(const LastVoteMessage& lastVote) = 0;
+    virtual void process(const BeginBallotMessage& beginBallot) = 0;
+    virtual void process(const VotedMessage& voted) = 0;
+    virtual void process(const SuccessMessage& success) = 0;
+  protected:
+    Legislator(LegislatorId id, Chamber& chamber)
+      : id_(id),
+      chamber_(chamber) {
+    } 
+    Vote getNullVote() const;
+    Chamber& chamber() const { return chamber_; }
 
-struct VotedMessage : Message {
-  virtual void deliver(Legislator& legislator);
-};
-
-struct SuccessMessage : Message {
-  virtual void deliver(Legislator& legislator);
-};
-
-class Chamber;
-
-class Legislator {
-public:
-  Legislator(Chamber& chamber) : chamber_(chamber) {
-  }
-
-  void process(const NextBallotMessage& nextBallot);
-  void process(const LastVoteMessage& lastVote);
-  void process(const BeginBallotMessage& beginBallot);
-  void process(const VotedMessage& voted);
-  void process(const SuccessMessage& success);
-
-private:
-  Chamber& chamber_;
-};
+  private:
+    LegislatorId id_;
+    Chamber& chamber_;
+  };
+  using ULegislator = std::unique_ptr<Legislator>;
+}
