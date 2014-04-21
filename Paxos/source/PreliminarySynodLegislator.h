@@ -2,15 +2,24 @@
 
 #include "Legislator.h"
 
+#include <functional>
+#include <mutex>
+
 namespace Paxos {
   namespace Synod {
     namespace Preliminary {
       class Legislator : public Paxos::Legislator {
         using Base = Paxos::Legislator;
       public:
+        using DecreeGetter = std::function<Decree()>;
+
         Legislator(LegislatorId id, Chamber& chamber)
           : Base(id, chamber) {
         }
+
+        // getDecree will only be invoked if we are free to ballot for
+        // an arbitrary decree
+        void initiateBalloting(DecreeGetter getDecree);
 
         void process(const NextBallotMessage& nextBallot) override;
         void process(const LastVoteMessage& lastVote) override;
@@ -20,11 +29,13 @@ namespace Paxos {
 
       private:
         struct Ballot {
-          Ballot(BallotNumber b)
-          : number(b) {
+          Ballot(BallotNumber b, DecreeGetter getter)
+          : number(b),
+            decreeGetter(getter) {
           }
 
           BallotNumber number;
+          DecreeGetter decreeGetter;
           std::map<LegislatorId, Vote> lastVotes;
 
           bool ballotingBegun{ false };
@@ -32,7 +43,7 @@ namespace Paxos {
           std::set<LegislatorId> votes;
         };
 
-        void initiateBalloting();
+        std::mutex m_;
 
         int64_t nextBallotNumber_{ 0 };
 

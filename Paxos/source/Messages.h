@@ -8,7 +8,9 @@ namespace Paxos {
     : Message(sender),
       ballotNumber(ballot) {
     }
+
     void deliver(Legislator& legislator) const override;
+    void output(std::ostream& out) const override;
 
     BallotNumber ballotNumber;
   };
@@ -19,7 +21,9 @@ namespace Paxos {
         ballot(b),
         lastVote(lv) {
     }
+
     void deliver(Legislator& legislator) const override;
+    void output(std::ostream& out) const override;
 
     BallotNumber ballot;
     Vote lastVote;
@@ -31,8 +35,10 @@ namespace Paxos {
       ballot(b),
       decree(d) {
     }
+
     void deliver(Legislator& legislator) const override;
-    
+    void output(std::ostream& out) const override;
+
     BallotNumber ballot;
     Decree decree;
   };
@@ -43,7 +49,9 @@ namespace Paxos {
       ballot(b),
       decree(d) {
     }
+
     void deliver(Legislator& legislator) const override;
+    void output(std::ostream& out) const override;
 
     BallotNumber ballot;
     Decree decree;
@@ -54,7 +62,9 @@ namespace Paxos {
     : Message(sender),
       decree(d) {
     }
+
     void deliver(Legislator& legislator) const override;
+    void output(std::ostream& out) const override;
 
     Decree decree;
   };

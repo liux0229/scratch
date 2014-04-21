@@ -16,12 +16,12 @@ namespace Paxos {
     int64_t number;
     LegislatorId legislatorId;
   };
-
   inline bool operator<(const BallotNumber& a, const BallotNumber& b) {
     // TODO: what happens if we check legislator id first?
     return a.number < b.number ||
       a.number == b.number && a.legislatorId < b.legislatorId;
   }
+  std::ostream& operator<<(std::ostream& out, BallotNumber ballot);
 
   struct Decree {
     Decree() = default;
@@ -33,6 +33,7 @@ namespace Paxos {
   inline bool operator==(const Decree& a, const Decree& b) {
     return a.value == b.value;
   }
+  std::ostream& operator<<(std::ostream& out, Decree decree);
 
   struct Vote {
     static Vote getNullVote(LegislatorId legislator);
@@ -46,14 +47,22 @@ namespace Paxos {
     // votes with the same ballot number will compare equally, which is fine
     return a.ballot < b.ballot;
   }
+  std::ostream& operator<<(std::ostream& out, const Vote& vote);
 
   class Legislator;
   struct Message {
     Message(LegislatorId s) : sender(s) { }
     virtual ~Message() {}
+
     virtual void deliver(Legislator& legislator) const = 0;
+    virtual void output(std::ostream& out) const = 0;
 
     LegislatorId sender;
   };
-  using UMessage = std::unique_ptr<Message>;
+  using SMessage = std::shared_ptr<Message>;
+
+  inline std::ostream& operator<<(std::ostream& out, const Message& msg) {
+    msg.output(out);
+    return out;
+  }
 }
