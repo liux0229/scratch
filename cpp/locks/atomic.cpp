@@ -28,11 +28,12 @@ int main()
    
    cout << "end" << endl;
    
-   // std::align not available
-   // void* z = (char *)x + 1;
-   // void* ret = align(4, 4, z, 8);
+   // std::align not available under g++ 4.8
+   void* z = (char *)x + 1;
+   size_t space = 8;
+   void* ret = align(4, 4, z, space);
    
-   //cout << hex << ret  << " " << z << endl;
+   cout << hex << ret  << " " << z << " " << space << endl;
    
    return 0;
 }
