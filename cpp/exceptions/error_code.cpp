@@ -29,5 +29,10 @@ int main()
    cout << error_code{future_errc::no_state}.message() << endl;
    cout << error_code{future_errc::no_state}.category().name() << endl;
    
+   cout << error_code{future_errc::no_state} << endl;
+   
+   cout << make_error_code(errc::resource_unavailable_try_again).message() << endl;
+   cout << make_error_code(future_errc::broken_promise).message() << endl;
+   
    return 0;
 }
