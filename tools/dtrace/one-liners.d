@@ -14,3 +14,5 @@ sudo dtrace -qn 'syscall::read:entry /execname == "Google Chrome"/ { @[ustack()]
 sudo dtrace -n 'profile-997 /arg0/ { @[stack()] = count(); } tick-10s {exit(0);} END { trunc(@, 10); }'
 
 sudo dtrace -n 'profile-997 /arg0/ { @[func(arg0)] = count(); } tick-10s {exit(0);} END { trunc(@, 10); }'
+
+sudo dtrace -n 'profile-997 /execname == "Google Chrome"/ { @[cpu] = count(); } tick-10s {exit(0);}'
