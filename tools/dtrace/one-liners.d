@@ -10,3 +10,7 @@ sudo dtrace -qn 'syscall::kill:entry { printf("%Y: %s (pid: %d) sends signal %d 
 
 // no symbols available
 sudo dtrace -qn 'syscall::read:entry /execname == "Google Chrome"/ { @[ustack()] = count(); }'
+
+sudo dtrace -n 'profile-997 /arg0/ { @[stack()] = count(); } tick-10s {exit(0);} END { trunc(@, 10); }'
+
+sudo dtrace -n 'profile-997 /arg0/ { @[func(arg0)] = count(); } tick-10s {exit(0);} END { trunc(@, 10); }'
