@@ -22,3 +22,5 @@ sudo dtrace -n 'sched:::on-cpu /execname == "Google Chrome"/ { self->ts = vtimes
 sudo dtrace -n 'fbt::kmem_cache_alloc:entry { @[stack()] = count(); }'
 
 sudo dtrace -n 'pid$target::malloc:entry { @["size", ustack()] = quantize(arg0); }' -p 75518
+
+sudo dtrace -n 'vminfo:::as_fault /pid == 75518/ { @[ustack()] = count(); }'
