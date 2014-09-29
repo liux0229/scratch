@@ -18,3 +18,7 @@ sudo dtrace -n 'profile-997 /arg0/ { @[func(arg0)] = count(); } tick-10s {exit(0
 sudo dtrace -n 'profile-997 /execname == "Google Chrome"/ { @[cpu] = count(); } tick-10s {exit(0);}'
 
 sudo dtrace -n 'sched:::on-cpu /execname == "Google Chrome"/ { self->ts = vtimestamp; } sched:::off-cpu /self->ts/ { @["elapsed"] = quantize(vtimestamp - self->ts); self->ts = 0; } tick-60s {exit(0);}'
+
+sudo dtrace -n 'fbt::kmem_cache_alloc:entry { @[stack()] = count(); }'
+
+sudo dtrace -n 'pid$target::malloc:entry { @["size", ustack()] = quantize(arg0); }' -p 75518
