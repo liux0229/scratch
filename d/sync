@@ -1,0 +1,7 @@
+#! /bin/sh
+
+cp ~/fbcode-2/experimental/rockyliu/d/*.d .
+cp ~/fbcode-2/experimental/rockyliu/d/TARGETS .
+git add .
+git commit
+
