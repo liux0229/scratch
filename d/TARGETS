@@ -1,0 +1,35 @@
+d_binary (
+    name = 'hello_world',
+    srcs = [
+        'HelloWorld.d',
+    ],
+    deps = [
+    ],
+)
+
+d_binary (
+    name = 'word_count',
+    srcs = [
+        'WordCount.d',
+    ],
+    deps = [
+    ],
+)
+
+d_unittest (
+    name = 'binary_search_test',
+    srcs = [
+        'BinarySearchTest.d',
+    ],
+    deps = [
+    ],
+)
+
+d_binary (
+    name = 'stats',
+    srcs = [
+        'Stats.d',
+    ],
+    deps = [
+    ],
+)
