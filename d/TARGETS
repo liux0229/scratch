@@ -33,3 +33,12 @@ d_binary (
     deps = [
     ],
 )
+
+d_binary (
+    name = 'is_expression',
+    srcs = [
+        'IsExpression.d',
+    ],
+    deps = [
+    ],
+)
