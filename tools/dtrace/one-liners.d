@@ -34,3 +34,5 @@ sudo dtrace -n 'fsinfo::: /execname == "Google Chrome"/ { @[probename] = count()
 opensnoop & rwsnoop & rwtop
 
 sudo dtrace -n 'syscall::read:entry /fds[arg0].fi_fs == "hfs"/ { self->start = timestamp; } syscall::read:return /self->start/ { @["ns"] = quantize(timestamp - self->start); self->start = 0; }'
+
+sudo dtrace -ln 'fbt::fop_*:entry'
