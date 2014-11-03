@@ -30,3 +30,5 @@ sudo dtrace -n 'vminfo:::anonpgin { @[pid, execname] = count(); }'
 sudo dtrace -n 'fsinfo::: { @[execname] = count(); }'
 
 sudo dtrace -n 'fsinfo::: /execname == "Google Chrome"/ { @[probename] = count(); }'
+
+opensnoop & rwsnoop & rwtop
