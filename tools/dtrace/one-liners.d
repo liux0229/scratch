@@ -26,3 +26,5 @@ sudo dtrace -n 'pid$target::malloc:entry { @["size", ustack()] = quantize(arg0);
 sudo dtrace -n 'vminfo:::as_fault /pid == 75518/ { @[ustack()] = count(); }'
 
 sudo dtrace -n 'vminfo:::anonpgin { @[pid, execname] = count(); }'
+
+sudo dtrace -n 'fsinfo::: { @[execname] = count(); }'
