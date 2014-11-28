@@ -13,7 +13,7 @@ void handler(int signal) {
   // cout << px << endl;
   // cout << "diff = " << pa - px << endl;
 
-  // cout << "a[1] = " << *(pa + 1) << endl;
+  cout << "i = " << *(pa + 1) << endl;
   observed = *(pa + 1);
   *pa = signal == SIGINT ? 1 : 2;
 }
@@ -27,8 +27,14 @@ void installSignal() {
 }
 
 void f() {
-  volatile int64_t a[2]{};
-  pa = a;
+  volatile int64_t a = 0;
+  // note: this must be volatile to force the compiler to actually update the
+  // memory for i. There is no guarantee that this would happen even if we
+  // take the address of i.
+  int64_t i = 0;
+
+  pa = &a;
+
   cout << (int64_t*)pa << endl;
 
   installSignal();
@@ -37,13 +43,13 @@ void f() {
   size_t equal = 0;
 
   while (true) {
-    ++a[1];
-    if (a[0] == 1) {
-      a[0] = 0;
-      // cout << "After signal: i=" << a[1] << endl;
+    ++i;
+    if (a == 1) {
+      a = 0;
+      cout << "After signal: i=" << i << endl;
       ++total;
-      equal += a[1] == observed;
-    } else if (a[0] == 2) {
+      equal += i == observed;
+    } else if (a == 2) {
       break;
     }
   }
