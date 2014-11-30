@@ -1,4 +1,4 @@
-// FLAGS: -O3
+// FLAGS: -O3 -g
 
 #include <iostream>
 #include <signal.h>
