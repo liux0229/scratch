@@ -1,3 +1,5 @@
+
+
 #include <iostream>
 #include <string>
 #include <algorithm>
@@ -281,7 +283,7 @@ short code[] = {
 0x0514, 0x0528, 0x04f4, 0x8508, 0x8510, 0x850c, 0x8514, 0x8844,
 0x884c, 0x8854, 0x8868, 0x0864, 0x086c, 0x0874, 0x0888, 0x888c,
 };
-auto sz = sizeof(code) / sizeof(*code);
+const auto sz = sizeof(code) / sizeof(*code);
 
 short swp(unsigned short v) {
     // cout << hex << (v & 0xff) << endl;
@@ -301,8 +303,9 @@ bool Na(short a, short b) {
 }
 
 bool Va(short a, short b) {
-    return (a >= 0 && b >= 0 && (short)(a + b) < (short)0) ||
-           (a < 0 && b < 0 && (short)(a + b) >= 0);
+    return false;
+    // return (a >= 0 && b >= 0 && (short)(a + b) < (short)0) ||
+    //       (a < 0 && b < 0 && (short)(a + b) >= 0);
 }
 
 bool Cs(unsigned short a, unsigned short b) {
@@ -318,6 +321,7 @@ bool Zs(short a, short b) {
 }
 
 bool Vs(short a, short b) {
+#if 0
     if ((a >= 0 && b >= 0) || (a < 0 && b < 0)) {
         return false;
     }
@@ -325,6 +329,8 @@ bool Vs(short a, short b) {
         swap(a, b);
     }
     return (short)(a - b) < (short)0 || (short)(b - a) >= (short)0;
+#endif
+    return false;
 }
 
 short status(bool v, bool n, bool z, bool c) {
@@ -438,15 +444,16 @@ unsigned short step(unsigned short loc) {
     short decoded[16];
     for (int i = 0; i <= 0xc; i += 2) {
         decoded[i / 2] = translate(code[(loc - base) / 2], loc);
+	// cout << hex << "(" << code[(loc - base) / 2] << "," << loc << ") => " << decoded[i / 2] << endl;
         loc += 2;
     }
     
     for (int i = 0; i < 7; ++i) {
         char buf[1024];
         sprintf(buf, "%04x", (unsigned)(unsigned short)decoded[i]);
-        cout << buf << endl;
+        // cout << buf << endl;
     }
-    cout << "===========\n";
+    // cout << "===========\n";
     
     // detect signature sequence (max index: 6)
     for (int i = 0; i <= 4; ++i) {
@@ -456,7 +463,7 @@ unsigned short step(unsigned short loc) {
             // cout << buf;
             for (int j = 0; j < i; ++j) {
                 sprintf(buf, "%04x", (unsigned)(unsigned short)decoded[j]);
-                // cout << buf << endl;
+                cout << buf << endl;
                 // cout << hex << decoded[j] << endl;
             }
             return swp(decoded[i + 1]) - (unsigned short)0x3194;
@@ -466,32 +473,62 @@ unsigned short step(unsigned short loc) {
     return 0;
 }
 
-void walk() {
+bool visited[sz];
+
+bool isVisited(unsigned short loc) {
+   if (loc < 0x1402) {
+      return true;
+   }
+   auto idx = (loc - 0x1402) / 2;
+   if (idx >= sz) {
+      return true;
+   }
+   return visited[idx];
+}
+
+void visit(unsigned short loc) {
+   visited[(loc - 0x1402) / 2] = true;
+}
+
+int walk(unsigned short loc = 0x18a6) {
     // cout << hex << step(0x18a6) << endl;
     // cout << hex << step(0x19d6) << endl;
-    unsigned short loc = 0x18a6;
-    for (int i = 0; i < 100; ++i) {
+    const int N = sz; 
+    for (int i = 0; i < N; ++i) {
         // cout << hex << loc << endl;
         // printf("i=%d\n", i);
-        loc = step(loc);
-        if (loc == 0) {
-            break;
+        loc = step(loc) + 2;
+        if (isVisited(loc)) {
+           return i + 1;
         }
-        loc += 2;
+        visit(loc);
     }
+    return N;
+}
+
+void search() {
+   int start = 0x1400;
+   for (int i = 0; i <= sz - 7; ++i) {
+      if (walk(start + i * 2 + 2) > 2) {
+         cout << hex << (start + 2 + i * 2) << endl;
+      }
+   }
 }
 
 int main()
 {
-    // printf("hello world\n");
-    // cout << hex << swp(0xac4a) << endl;
-    // cout << hex << translate(0x4fda, 0x18ac) << endl;
-    // cout << hex << translate(0x4486, 0x18ae) << endl;
-    // cout << hex << translate(0x42ea, 0x18b0) << endl;
-    // cout << hex << translate(0x417d, 0x18b2) << endl;
-    // auto ret = DAAD(0xffff, 0xffff, 0);
-    // cout << hex << ret.first << " " << ret.second << endl;
-    walk();
-    // cout << hex << translate(0x4855, 0x1482) << endl;
-    // cout << Ns(0x4d2, 0x8214) << endl; 
+   // printf("hello world\n");
+   // cout << hex << swp(0xac4a) << endl;
+   // cout << hex << translate(0x4fda, 0x18ac) << endl;
+   // cout << hex << translate(0x4486, 0x18ae) << endl;
+   // cout << hex << translate(0x42ea, 0x18b0) << endl;
+   // cout << hex << translate(0x417d, 0x18b2) << endl;
+   // auto ret = DAAD(0xffff, 0xffff, 0);
+   // cout << hex << ret.first << " " << ret.second << endl;
+   // walk();
+   // cout << hex << translate(0x4855, 0x1482) << endl;
+   // cout << Ns(0x4d2, 0x8214) << endl; 
+   // search();
+   // 1402 1406 1434 1466 148c 1494 14be 159e 1614 1698
+   walk(0x1618);
 }
