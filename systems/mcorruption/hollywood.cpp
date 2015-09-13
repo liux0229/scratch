@@ -440,37 +440,39 @@ short translate(short code, short loc) {
 }
 
 unsigned short step(unsigned short loc) {
-    int base = 0x1402;
-    short decoded[16];
-    for (int i = 0; i <= 0xc; i += 2) {
-        decoded[i / 2] = translate(code[(loc - base) / 2], loc);
-	// cout << hex << "(" << code[(loc - base) / 2] << "," << loc << ") => " << decoded[i / 2] << endl;
-        loc += 2;
-    }
-    
-    for (int i = 0; i < 7; ++i) {
-        char buf[1024];
-        sprintf(buf, "%04x", (unsigned)(unsigned short)decoded[i]);
-        // cout << buf << endl;
-    }
-    // cout << "===========\n";
-    
-    // detect signature sequence (max index: 6)
-    for (int i = 0; i <= 4; ++i) {
-        char buf[1024];
-        if (decoded[i] == 0x3c40 && decoded[i + 2] == 0x004d) {
-            // sprintf(buf, "found: %04x\n", (unsigned)(unsigned short)swp(decoded[i + 1]));
-            // cout << buf;
-            for (int j = 0; j < i; ++j) {
-                sprintf(buf, "%04x", (unsigned)(unsigned short)decoded[j]);
-                cout << buf << endl;
-                // cout << hex << decoded[j] << endl;
-            }
-            return swp(decoded[i + 1]) - (unsigned short)0x3194;
-        }
-    }
-    
-    return 0;
+   // cout << "Step started with " << hex << loc - 2 << endl;
+
+   int base = 0x1402;
+   short decoded[16];
+   for (int i = 0; i <= 0xc; i += 2) {
+      decoded[i / 2] = translate(code[(loc - base) / 2], loc);
+      // cout << hex << "(" << code[(loc - base) / 2] << "," << loc << ") => " << decoded[i / 2] << endl;
+      loc += 2;
+   }
+
+   for (int i = 0; i < 7; ++i) {
+      char buf[1024];
+      sprintf(buf, "%04x", (unsigned)(unsigned short)decoded[i]);
+      // cout << buf << endl;
+   }
+   // cout << "===========\n";
+
+   // detect signature sequence (max index: 6)
+   for (int i = 0; i <= 4; ++i) {
+      char buf[1024];
+      if (decoded[i] == 0x3c40 && decoded[i + 2] == 0x004d) {
+         // sprintf(buf, "found: %04x\n", (unsigned)(unsigned short)swp(decoded[i + 1]));
+         // cout << buf;
+         for (int j = 0; j < i; ++j) {
+            sprintf(buf, "%04x", (unsigned)(unsigned short)decoded[j]);
+            cout << buf << endl;
+            // cout << hex << decoded[j] << endl;
+         }
+         return swp(decoded[i + 1]) - (unsigned short)0x3194;
+      }
+   }
+
+   return 0;
 }
 
 bool visited[sz];
@@ -530,5 +532,6 @@ int main()
    // cout << Ns(0x4d2, 0x8214) << endl; 
    // search();
    // 1402 1406 1434 1466 148c 1494 14be 159e 1614 1698
-   walk(0x1618);
+   // walk(0x1618);
+   walk(0x1986);
 }
