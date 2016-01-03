@@ -31,17 +31,23 @@ auth = {'X-Starfighter-Authorization': 'bc9e234c0fc0fc2f45aabf7543bfbee1778921ef
 
 
 class StockUrl:
-    def __init__(self, account=None, stock=None, id=None, is_quote=False, is_ticker_tape=False):
+    def __init__(self, account=None, stock=None, id=None, is_quote=False, is_ticker_tape=False, is_execution=False):
         self.venue = venue
         self.account = account
         self.stock = stock
         self.id = id
         self.isQuote = is_quote
         self.isTickerTape = is_ticker_tape
+        self.isExecution = is_execution
 
     def str(self):
         if self.isTickerTape:
             return 'wss://api.stockfighter.io/ob/api/ws/{}/venues/{}/tickertape/stocks/{}'.format(self.account,
+                                                                                                  self.venue,
+                                                                                                  self.stock)
+
+        if self.isExecution:
+            return 'wss://api.stockfighter.io/ob/api/ws/{}/venues/{}/executions/stocks/{}'.format(self.account,
                                                                                                   self.venue,
                                                                                                   self.stock)
 
@@ -85,14 +91,6 @@ class Primitive:
         except Exception as e:
             print('Error placing order ({}): {}'.format(order, e))
             return None
-
-    @staticmethod
-    async def buy(amount, order_type, price):
-        return await Primitive.place(amount, order_type, price, 'buy')
-
-    @staticmethod
-    async def sell(amount, order_type, price):
-        return await Primitive.place(amount, order_type, price, 'sell')
 
     @staticmethod
     @asyncio.coroutine
@@ -169,7 +167,7 @@ class Positions:
     def averageCost(self):
         return self.totalCost() / self.total() if self.total() != 0 else 0
 
-    # Remove all existing fills with the same order id, and readd all fills from the order
+    # Remove all existing fills with the same order id, and re-add all fills from the order
     def update(self, order):
         self.fills = [fill for fill in self.fills if fill.orderId != order['id']]
         self.fills[len(self.fills):] = [
@@ -207,17 +205,168 @@ class QuoteSource:
                 await self.callback(quote)
 
 
-class MarketMaker:
+class ExecutionSource:
+    def __init__(self, callback):
+        self.callback = callback
+
+    async def run(self):
+        while True:
+            try:
+                await self.query()
+            except websockets.exceptions.ConnectionClosed:
+                print('Websocket closed. Reconnect.')
+
+    async def query(self):
+        async with websockets.connect(StockUrl(account=account, stock=stock, is_execution=True).str()) as websocket:
+            while True:
+                print(json.loads(await websocket.recv()))
+                execution = json.loads(await websocket.recv())
+                # Ensure we handle this execution completely until proceeding to the next one
+                await self.callback(execution)
+
+
+class Spread:
+    def __init__(self, bid, ask):
+        self.bid = bid
+        self.ask = ask
+
+
+class SpreadCalculator:
+    @staticmethod
+    def get(last):
+        margin = 25
+        myBid = last - margin
+        myAsk = last + margin
+        return Spread(bid=myBid, ask=myAsk)
+
+    @staticmethod
+    def from_quote(quote):
+        # Handle the case where bid and ask are really close
+        return Spread(bid=quote.get('bid', 0) + 1, ask=quote.get('ask', 1000000 * 100 + 1) - 1)
+
+
+# Keeps track of all my orders.
+# We could derive position information from this data structure.
+# Currently this only supports one stock.
+class OrderTracker:
     def __init__(self):
+        self.orders = dict()
+
+    # Add one order with (potentially new) fills to the data structure.
+    # The order could potentially be one which we didn't see before.
+    def add_order_fill(self, order):
+        if not order['id'] in self.orders:
+            # We haven't seen this order before. Just copy as-is.
+            self.orders[order['id']] = order
+            print('Recovered order {} from remote'.format(order))
+        else:
+            # We already have this order. Just add the fill we don't know yet.
+            local_order = self.orders[order['id']]
+            for new_fill in order['fills']:
+                if len(fill for fill in local_order['fills'] if fill['price'] == new_fill) == 0:
+                    local_order['fills'].append(new_fill)
+
+    @staticmethod
+    def quantity(fill):
+        return (1 if fill['direction'] == 'buy' else -1) * fill['qty']
+
+    def total(self):
+        return sum(OrderTracker.quantity(fill) for order in self.orders.values() for fill in order['fills'])
+
+    def total_cost(self):
+        return sum(OrderTracker.quantity(fill) * fill['price'] for order in self.orders.values() for fill in
+                   order['fills'])
+
+    # How much cash do I have can be inferred by my past trade
+    def cash(self):
+        return -self.totalCost()
+
+    def total_value(self, market_price):
+        return self.total() * market_price
+
+    def profit(self, market_price):
+        return self.total_value(market_price) + self.cash()
+
+
+class State:
+    def __init__(self):
+        self.orders = OrderTracker()
+        self.quote = None
+        self.spread = None
+
+    def update_spread(self, spread):
+        self.spread = spread
+
+    def open_buys_at(self, bid):
+        return 0
+
+
+class Planner:
+    def __init__(self):
+        self.state = State()
+
+    def plan(self):
+        # The planner can decide to place new orders or withdraw existing orders
+        quote = self.state.quote
+        if not quote:
+            return
+
+        quote_bid = quote.get('bid', 0)
+        quote_ask = quote.get('ask', 1000000 * 100)
+        # Let's ignore market opportunities if the spread is already very small
+        if quote_ask - quote_bid < 3:
+            return
+
+        new_spread = Spread(bid=quote_bid, ask=quote_ask)
+
+        quote_bid_size = quote.get('bidSize', 0)
+        open_buys = self.state.open_buys_at(quote_bid)
+        if open_buys < quote_bid_size:
+            # There are other participants who bid at the same price.
+            # We should bid higher.
+            new_spread.bid = quote_bid + 1
+
+        quote_ask_size = quote.get('askSize', 0)
+        open_sells = self.state.open_sells_at(quote_ask)
+        if open_sells < quote_ask_size:
+            # There are other participants who ask at the same price.
+            # We should sell lower.
+            new_spread.ask = quote_ask - 1
+
+        self.state.update_spread(new_spread)
+
+
+class MarketMaker:
+    # We can hold this many positions at most in either direction.
+    MAX_POSITION = 100
+
+    def __init__(self):
+        self.orders = OrderTracker()
         self.tasks = [
-            asyncio.ensure_future(QuoteSource(self.process_new_quote).run())
+            asyncio.ensure_future(QuoteSource(self.process_new_quote).run()),
+            asyncio.ensure_future(ExecutionSource(self.process_new_execution).run()),
         ]
 
     async def run(self):
         await asyncio.wait(self.tasks, return_when=concurrent.futures.ALL_COMPLETED)
 
+    # Considerations of whether to cancel an outstanding request:
+    # doing so would leave an inconsistent state on the client which requires us performing the recovering
+    # technique. We already know that recovering requires us to wait enough time. So this may not be the
+    # ideal strategy.
     async def process_new_quote(self, quote):
-        print(quote)
+        spread = SpreadCalculator.from_quote(quote)
+        buy = asyncio.ensure_future(
+            Primitive.place(amount=MarketMaker.MAX_POSITION, order_type='limit', price=spread.bid, direction='buy'))
+        sell = asyncio.ensure_future(
+                Primitive.place(amount=MarketMaker.MAX_POSITION, order_type='limit', price=spread.ask,
+                                direction='sell'))
+        completed, pending = await asyncio.wait([buy, sell])
+        for task in completed:
+            self.orders.add_order_fill(task.result())
+
+    async def process_new_execution(self, execution):
+        self.orders.add_order_fill(execution['order'])
 
 
 class SellSideStrategy2:
@@ -258,7 +407,8 @@ class Orders:
                 return order
             else:
                 print(
-                    'Error when ordering({}) {} shares of {} with type {}'.format(direction, amount, stock, order_type))
+                        'Error when ordering({}) {} shares of {} with type {}'.format(direction, amount, stock,
+                                                                                      order_type))
                 time.sleep(5)  # Wait some time for the state to be committed in remote
 
                 # This is a tricky situation - we initiated an `insertion` into the order book but cannot confirm its
@@ -396,39 +546,6 @@ class ChockABlockStrategy:
     @staticmethod
     def bootstrap():
         asyncio.get_event_loop().run_until_complete(ChockABlockStrategy().run())
-
-
-class Spread:
-    def __init__(self, bid, ask):
-        self.bid = bid
-        self.ask = ask
-
-
-class SpreadCalculator:
-    # @staticmethod
-    # def get(quote):
-    #     # print(quote)
-    #     # I can do better than what the current market offers by this much
-    #     # If either bid or ask is not available, then I use last
-    #     last = quote.get('last', None)
-    #     if (last is None):
-    #         return None
-    # 
-    #     margin = 10
-    #     myBid = last - margin
-    #     myAsk = last + margin
-    #     # if ('bid' in quote):
-    #     #   myBid = max(myBid, quote['bid'])
-    #     # if ('ask' in quote):
-    #     #   myAsk = min(myAsk, quote['ask'])
-    #     return Spread(bid = myBid, ask = myAsk)
-
-    @staticmethod
-    def get(last):
-        margin = 25
-        myBid = last - margin
-        myAsk = last + margin
-        return Spread(bid=myBid, ask=myAsk)
 
 
 # This is a relatively simple strategy.
