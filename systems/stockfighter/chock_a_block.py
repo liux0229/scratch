@@ -10,6 +10,13 @@ import argparse
 import logging
 import concurrent.futures
 
+# -----------------------------------
+# Problems so far:
+#
+# *) Order of canceling and new order seems reversed
+# *) Need to think more on how to move the spread: someone crosses me higher, if I also move higher, I stand to lose
+# -----------------------------------
+
 # ----------- Back up ---------------
 # url = 'https://api.stockfighter.io/ob/api/venues/{venue}/accounts/{account}/stocks/{stock}/orders'.format(venue=venue, account=account, stock=stock)
 # pprint.pprint(r.json())
@@ -24,9 +31,9 @@ import concurrent.futures
 # async with websockets.connect('wss://api.stockfighter.io/ob/api/ws/EXB123456/venues/TESTEX/executions') as websocket:
 # ----------------------------------
 
-account = 'BMS13803454'
-venue = 'YPHEX'
-stock = 'WLIM'
+account = 'STB5052744'
+venue = 'KOPEX'
+stock = 'EPG'
 auth = {'X-Starfighter-Authorization': 'bc9e234c0fc0fc2f45aabf7543bfbee1778921ef'}
 
 
@@ -87,6 +94,7 @@ class Primitive:
             response = yield from r.json()
             if not response['ok']:
                 raise Exception(response['error'])
+            print('order {} placed {} at {} {}'.format(response['id'], amount, price, direction))
             return response
         except Exception as e:
             print('Error placing order ({}): {}'.format(order, e))
@@ -109,6 +117,7 @@ class Primitive:
     @staticmethod
     @asyncio.coroutine
     def cancel(order_id):
+        print('canceling {}'.format(order_id))
         while True:
             try:
                 r = yield from yieldfrom.requests.delete(StockUrl(stock=stock, id=order_id).str(), headers=auth)
@@ -118,6 +127,7 @@ class Primitive:
                 return response
             except Exception as e:
                 print('Error canceling {}: {}'.format(order_id, e))
+                yield from asyncio.sleep(1)
 
     @staticmethod
     @asyncio.coroutine
@@ -131,6 +141,7 @@ class Primitive:
                 return response['orders']
             except Exception as e:
                 print('Error querying all orders: {}'.format(e))
+                yield from asyncio.sleep(1)
 
     @staticmethod
     @asyncio.coroutine
@@ -144,6 +155,7 @@ class Primitive:
                 return response
             except Exception as e:
                 print('Error querying quote: {}'.format(e))
+                yield from asyncio.sleep(1)
 
 
 class Fill:
@@ -199,10 +211,22 @@ class QuoteSource:
     async def query(self):
         async with websockets.connect(StockUrl(account=account, stock=stock, is_ticker_tape=True).str()) as websocket:
             while True:
-                print(json.loads(await websocket.recv()))
+                # print(json.loads(await websocket.recv()))
                 quote = json.loads(await websocket.recv())['quote']
-                # Ensure we handle this quote completely until proceeding to the next one
                 await self.callback(quote)
+
+
+# Use polling instead of push
+class QuoteSource2:
+    def __init__(self, callback):
+        self.callback = callback
+
+    async def run(self):
+        while True:
+            quote = await Primitive.quote()
+            await self.callback(quote)
+            # Just experiment with this
+            await asyncio.sleep(1)
 
 
 class ExecutionSource:
@@ -219,9 +243,8 @@ class ExecutionSource:
     async def query(self):
         async with websockets.connect(StockUrl(account=account, stock=stock, is_execution=True).str()) as websocket:
             while True:
-                print(json.loads(await websocket.recv()))
+                # print(json.loads(await websocket.recv()))
                 execution = json.loads(await websocket.recv())
-                # Ensure we handle this execution completely until proceeding to the next one
                 await self.callback(execution)
 
 
@@ -239,47 +262,143 @@ class SpreadCalculator:
         myAsk = last + margin
         return Spread(bid=myBid, ask=myAsk)
 
-    @staticmethod
-    def from_quote(quote):
-        # Handle the case where bid and ask are really close
-        return Spread(bid=quote.get('bid', 0) + 1, ask=quote.get('ask', 1000000 * 100 + 1) - 1)
+
+# This represents the client's view of an order.
+# The class is responsible for synchronizing itself with the remote.
+class Order:
+    def __init__(self, order_set, direction, order_type, amount, price):
+        self.orderSet = order_set
+        self.direction = direction
+        self.orderType = order_type
+        self.amount = amount
+        self.price = price
+        self.remote_order = None
+        self.syncTask = asyncio.ensure_future(
+                Primitive.place(amount=amount, order_type=order_type, price=price, direction=direction))
+        self.syncTask.add_done_callback(self.place_order_finished)
+        self.recover_order_task = None
+        self.cancelled = False
+
+    @property
+    def id(self):
+        return self.remote_order['id'] if self.remote_order else None
+
+    @property
+    def fills(self):
+        return self.remote_order['fills'] if self.remote_order else []
+
+    @property
+    def is_open(self):
+        if self.remote_order:
+            return self.remote_order['open']
+        # We don't have remote_order
+        # Are we still synchronizing or it has already failed?
+        if not self.syncTask.done():
+            return True
+        if not self.recover_order_task:
+            # Our callback has not run yet. Assume still open.
+            return True
+        return not self.recover_order_task.done()
+
+    @property
+    def outstanding(self):
+        if not self.is_open:
+            return 0
+        if not self.remote_order:
+            return self.amount
+        return self.amount - sum(fill['qty'] for fill in self.remote_order['fills'])
+
+    def place_order_finished(self, task):
+        try:
+            self.remote_order = task.result()
+        except Exception as e:
+            print('Placing order returned exception: {}'.format(e))
+            # The order might have been created in the remote
+            # We need to recover it (so that we can keep track of it and retain the ability to cancel it)
+            self.recover_order_task = asyncio.ensure_future(self.recover_order)
+
+    async def recover_order(self):
+        started = datetime.datetime.now()
+        while True:
+            if datetime.datetime.now() - started >= datetime.timedelta(seconds=30):
+                print('Did not recover any order')
+                break
+            await asyncio.sleep(1)
+
+            if self.remote_order:
+                # We have already recovered it through other means
+                break
+
+            existing_ids = self.order_set.get_all_order_ids()
+            server_orders = await Primitive.all_orders_stock()
+            matching_orders = [order for order in server_orders if
+                               order['id'] not in existing_ids and order['originalQty'] == self.amount and order[
+                                   'symbol'] == stock and order[
+                                   'price'] == self.price and order['direction'] == self.direction and order[
+                                   'orderType'] == self.orderType]
+            if len(matching_orders) > 0:
+                # If there are multiple matching orders then pick any one
+                self.remote_order = matching_orders[0]
+                print('Recovered order {}'.format(self.remote_order))
+                break
+
+    # By making the method async, I am allowing the caller to be able to wait upon the completion of the call
+    async def cancel(self):
+        if self.cancelled:
+            return
+        self.cancelled = True
+
+        if not self.syncTask.done():
+            # We should wait upon the task so that we can cancel it. Canceling the task does not buy us much.
+            # Note that callbacks are called in the order they are registered. This is exactly what we need:
+            # We need the handling registered in the constructor to be run before we continue here.
+            await asyncio.wait([self.syncTask])
+        if self.recover_order_task and not self.recover_order_task.done():
+            # Wait until we have an id of the order so we can cancel.
+            await asyncio.wait([self.recover_order_task])
+        if not self.remote_order:
+            # Still does not have the remote order. Nothing to cancel.
+            return
+        if self.remote_order['open']:
+            self.remote_order = await Primitive.cancel(self.remote_order['id'])
+
+    def add_fill(self, fill):
+        # Only add the fill if it's not already present
+        assert self.remote_order
+        if len([fill for fill in self.remote_order['fills'] if fill == fill]) == 0:
+            self.remote_order['fills'].append(fill)
 
 
-# Keeps track of all my orders.
-# We could derive position information from this data structure.
-# Currently this only supports one stock.
-class OrderTracker:
+class OrderSet:
     def __init__(self):
-        self.orders = dict()
+        self.orders = []
 
-    # Add one order with (potentially new) fills to the data structure.
-    # The order could potentially be one which we didn't see before.
-    def add_order_fill(self, order):
-        if not order['id'] in self.orders:
-            # We haven't seen this order before. Just copy as-is.
-            self.orders[order['id']] = order
-            print('Recovered order {} from remote'.format(order))
-        else:
-            # We already have this order. Just add the fill we don't know yet.
-            local_order = self.orders[order['id']]
-            for new_fill in order['fills']:
-                if len(fill for fill in local_order['fills'] if fill['price'] == new_fill) == 0:
-                    local_order['fills'].append(new_fill)
+    def new_order(self, **kwargs):
+        order = Order(self, **kwargs)
+        self.orders.append(order)
+        return order
+
+    def get_order(self, order_id):
+        matching = [order for order in self.orders if order.id == order_id]
+        if len(matching) > 0:
+            assert len(matching) == 1
+            return matching[0]
+        return None
 
     @staticmethod
-    def quantity(fill):
-        return (1 if fill['direction'] == 'buy' else -1) * fill['qty']
+    def quantity(order, fill):
+        return (1 if order.direction == 'buy' else -1) * fill['qty']
 
     def total(self):
-        return sum(OrderTracker.quantity(fill) for order in self.orders.values() for fill in order['fills'])
+        return sum(OrderSet.quantity(order, fill) for order in self.orders for fill in order.fills)
 
     def total_cost(self):
-        return sum(OrderTracker.quantity(fill) * fill['price'] for order in self.orders.values() for fill in
-                   order['fills'])
+        return sum(OrderSet.quantity(order, fill) * fill['price'] for order in self.orders for fill in
+                   order.fills)
 
     # How much cash do I have can be inferred by my past trade
     def cash(self):
-        return -self.totalCost()
+        return -self.total_cost()
 
     def total_value(self, market_price):
         return self.total() * market_price
@@ -289,30 +408,76 @@ class OrderTracker:
 
 
 class State:
+    MAX_POSITION = 100
+
     def __init__(self):
-        self.orders = OrderTracker()
-        self.quote = None
+        self.orderSet = OrderSet()
         self.spread = None
 
-    def update_spread(self, spread):
+    async def update_spread(self, spread):
         self.spread = spread
+        tasks = [
+            asyncio.ensure_future(self.update_price('buy', spread.bid)),
+            asyncio.ensure_future(self.update_price('sell', spread.ask)),
+        ]
+        await asyncio.wait(tasks)
 
-    def open_buys_at(self, bid):
-        return 0
+    async def update_price(self, direction, new_price):
+        # Cancel all buys with a different bid
+        cancels = []
+        for order in self.orderSet.orders:
+            if order.is_open and order.direction == direction and order.price != new_price:
+                cancels.append(asyncio.ensure_future(order.cancel()))
+        # If we don't wait for all the cancels to finish first, we risk placing too many orders
+        # and hold too long (short) a position
+        if len(cancels):
+            await asyncio.wait(cancels)
+        amount = self.get_amount(direction)
+        if amount > 0:
+            self.orderSet.new_order(direction=direction, price=new_price, amount=amount, order_type='limit')
+
+    async def add_order_fill(self, order):
+        matching = self.orderSet.get_order(order['id'])
+        if matching:
+            matching.add_fill(order['fills'][0])
+        else:
+            print('{} not synchronized to local yet.'.format(order['id']))
+            candidates = [c for c in self.orderSet.orders if
+                          c.direction == order['direction'] and c.amount == order[
+                              'originalQty'] and c.price == order['price'] and order[
+                              'symbol'] == stock and c.orderType == order['orderType']]
+            if len(candidates) > 0:
+                print('Recovered {} through execution stream'.format(order))
+                candidates[0].remote_order = order
+        await self.update_spread(self.spread)
+
+    # How many to order for the given direction, given the positions we have
+    def get_amount(self, direction):
+        if direction == 'buy':
+            buy_outstanding = sum(
+                    order.outstanding for order in self.orderSet.orders if order.direction == 'buy' and order.is_open)
+            return State.MAX_POSITION - buy_outstanding - self.orderSet.total()
+        else:
+            sell_outstanding = sum(
+                    order.outstanding for order in self.orderSet.orders if order.direction == 'sell' and order.is_open)
+            return State.MAX_POSITION - sell_outstanding + self.orderSet.total()
 
 
 class Planner:
-    def __init__(self):
-        self.state = State()
+    def __init__(self, state):
+        self.state = state
 
-    def plan(self):
-        # The planner can decide to place new orders or withdraw existing orders
-        quote = self.state.quote
-        if not quote:
-            return
-
+    async def new_quote(self, quote):
         quote_bid = quote.get('bid', 0)
         quote_ask = quote.get('ask', 1000000 * 100)
+
+        print(
+                'new quote. bid:{} ask:{} total: {}, cash: {}, profit: {}'.format(quote_bid, quote_ask,
+                                                                                  self.state.orderSet.total(),
+                                                                                  self.state.orderSet.cash(),
+                                                                                  self.state.orderSet.profit(
+                                                                                      quote.get('last', 0))))
+
         # Let's ignore market opportunities if the spread is already very small
         if quote_ask - quote_bid < 3:
             return
@@ -320,53 +485,41 @@ class Planner:
         new_spread = Spread(bid=quote_bid, ask=quote_ask)
 
         quote_bid_size = quote.get('bidSize', 0)
-        open_buys = self.state.open_buys_at(quote_bid)
+        open_buys = sum(order.amount for order in self.state.orderSet.orders if
+                        order.is_open and order.direction == 'buy' and order.price == quote_bid)
         if open_buys < quote_bid_size:
             # There are other participants who bid at the same price.
             # We should bid higher.
             new_spread.bid = quote_bid + 1
 
         quote_ask_size = quote.get('askSize', 0)
-        open_sells = self.state.open_sells_at(quote_ask)
+        open_sells = sum(order.amount for order in self.state.orderSet.orders if
+                         order.is_open and order.direction == 'sell' and order.price == quote_ask)
         if open_sells < quote_ask_size:
             # There are other participants who ask at the same price.
             # We should sell lower.
             new_spread.ask = quote_ask - 1
 
-        self.state.update_spread(new_spread)
+        await self.state.update_spread(new_spread)
 
 
 class MarketMaker:
-    # We can hold this many positions at most in either direction.
-    MAX_POSITION = 100
-
     def __init__(self):
-        self.orders = OrderTracker()
+        self.state = State()
+        self.planner = Planner(self.state)
         self.tasks = [
-            asyncio.ensure_future(QuoteSource(self.process_new_quote).run()),
+            asyncio.ensure_future(QuoteSource2(self.process_new_quote).run()),
             asyncio.ensure_future(ExecutionSource(self.process_new_execution).run()),
         ]
 
     async def run(self):
         await asyncio.wait(self.tasks, return_when=concurrent.futures.ALL_COMPLETED)
 
-    # Considerations of whether to cancel an outstanding request:
-    # doing so would leave an inconsistent state on the client which requires us performing the recovering
-    # technique. We already know that recovering requires us to wait enough time. So this may not be the
-    # ideal strategy.
     async def process_new_quote(self, quote):
-        spread = SpreadCalculator.from_quote(quote)
-        buy = asyncio.ensure_future(
-            Primitive.place(amount=MarketMaker.MAX_POSITION, order_type='limit', price=spread.bid, direction='buy'))
-        sell = asyncio.ensure_future(
-                Primitive.place(amount=MarketMaker.MAX_POSITION, order_type='limit', price=spread.ask,
-                                direction='sell'))
-        completed, pending = await asyncio.wait([buy, sell])
-        for task in completed:
-            self.orders.add_order_fill(task.result())
+        asyncio.ensure_future(self.planner.new_quote(quote))
 
     async def process_new_execution(self, execution):
-        self.orders.add_order_fill(execution['order'])
+        asyncio.ensure_future(self.state.add_order_fill(execution['order']))
 
 
 class SellSideStrategy2:
