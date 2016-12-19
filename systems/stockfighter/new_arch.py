@@ -5,7 +5,7 @@ import json
 import time
 import websockets
 import concurrent.futures
-from common import StockUrl, account, stock, Primitive, Spread, setup_flags
+from common import StockUrl, Primitive, Spread, setup_flags, Player
 
 
 class QuoteSource:
@@ -20,7 +20,8 @@ class QuoteSource:
                 print('Websocket closed. Reconnect.')
 
     async def query(self):
-        async with websockets.connect(StockUrl(account=account, stock=stock, is_ticker_tape=True).str()) as websocket:
+        async with websockets.connect(StockUrl(account=Player.get().account, stock=Player.get().stock,
+                                               is_ticker_tape=True).str()) as websocket:
             while True:
                 # print(json.loads(await websocket.recv()))
                 quote = json.loads(await websocket.recv())['quote']
@@ -52,11 +53,13 @@ class ExecutionSource:
                 print('Websocket closed. Reconnect.')
 
     async def query(self):
-        async with websockets.connect(StockUrl(account=account, stock=stock, is_execution=True).str()) as websocket:
+        async with websockets.connect(
+                StockUrl(account=Player.get().account, stock=Player.get().stock, is_execution=True).str()) as websocket:
             while True:
                 # print(json.loads(await websocket.recv()))
                 execution = json.loads(await websocket.recv())
                 await self.callback(execution)
+
 
 # This represents the client's view of an order.
 # The class is responsible for synchronizing itself with the remote.
@@ -128,7 +131,7 @@ class Order:
             server_orders = await Primitive.all_orders_stock()
             matching_orders = [order for order in server_orders if
                                order['id'] not in existing_ids and order['originalQty'] == self.amount and order[
-                                   'symbol'] == stock and order[
+                                   'symbol'] == Player.get().stock and order[
                                    'price'] == self.price and order['direction'] == self.direction and order[
                                    'orderType'] == self.orderType]
             if len(matching_orders) > 0:
@@ -271,7 +274,7 @@ class Planner:
                                                                                   self.state.orderSet.total(),
                                                                                   self.state.orderSet.cash(),
                                                                                   self.state.orderSet.profit(
-                                                                                      quote.get('last', 0))))
+                                                                                          quote.get('last', 0))))
 
         # Let's ignore market opportunities if the spread is already very small
         if quote_ask - quote_bid < 3:
@@ -320,6 +323,7 @@ class MarketMaker:
 class SellSideStrategy2:
     @staticmethod
     def bootstrap():
+        Player.get('sell_side')
         asyncio.get_event_loop().run_until_complete(MarketMaker().run())
 
 
