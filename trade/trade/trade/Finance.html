@@ -1,0 +1,56 @@
+<HTML>
+<HEAD>
+<TITLE></TITLE>
+<script>
+  function getMorgage(base, apr, years, payYears) {
+    var units = 12;
+    var monthRate = 1 + apr / 12;
+
+    var p = years * units;
+    var total = base * Math.pow(monthRate, p);
+
+    var sum = function(b, q, n) {
+      return b * (Math.pow(q, n) - 1) / (q - 1);
+    };
+
+    morgage = total / sum(1, monthRate, p);
+
+    var interest = morgage * p - base;
+    var remain = base * Math.pow(monthRate, payYears * units) - morgage * sum(1, monthRate, payYears * units);
+    var actualInterest = morgage * payYears * units - (base - remain);
+
+    return { morgage: morgage, interest: interest, remain: remain, actualInterest: actualInterest };
+  }
+
+  function compute() {
+    var principle = Number(document.getElementById("principle").value);
+    var apr = Number(document.getElementById("apr").value);
+    var years = Number(document.getElementById("years").value);
+    var payYears = Number(document.getElementById("payYears").value);
+    var morgage = document.getElementById("morgage");
+    var interest = document.getElementById("interest");
+    var remain = document.getElementById("remain");
+    var actualInterest = document.getElementById("actualInterest");
+
+    var m = getMorgage(principle, apr, years, payYears);
+    morgage.innerText = m.morgage;
+    interest.innerText = m.interest;
+    remain.innerText = m.remain;
+    actualInterest.innerText = m.actualInterest;
+  }
+</script>
+</HEAD>
+<BODY>
+
+  <h1>Finance calculator</h1>
+
+  <div>Principle: <input type="text" value="900000" id="principle"/></div>
+  <div>APR: <input type="text" value="0.035" id="apr"/></div>
+  <div>Years: <input type="text" value="30" id="years"/></div>
+  <div>Morgage: <span id="morgage"/></div>
+  <div>Interest: <span id="interest"/></div>
+  <div>Principle after <input id="payYears" value="10"/> years: <span id="remain"></span>; interest paid: <span id="actualInterest"/></div>
+  <div><input type="button" value="Get" onclick="compute()"/></div>
+
+</BODY>
+</HTML>
