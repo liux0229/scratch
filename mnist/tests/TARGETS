@@ -1,0 +1,7 @@
+cpp_unittest(
+    name = "tensor_test",
+    srcs = ["TensorTest.cpp"],
+    deps = [
+        "//experimental/rockyliu/mnist:mnist_lib",
+    ],
+)

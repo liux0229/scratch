@@ -1,0 +1,26 @@
+cpp_library(
+    name = "mnist_lib",
+    srcs = [
+        "common.cpp",
+        "evaluator.cpp",
+        "graph.cpp",
+        "operators.cpp",
+        "tensor.cpp",
+        "trainer.cpp",
+    ],
+    auto_headers = AutoHeaders.RECURSIVE_GLOB,  # https://fburl.com/424819295
+    deps = [
+        "//folly:optional",
+    ],
+)
+
+cpp_binary(
+    name = "mnist",
+    srcs = [
+        "main.cpp",
+    ],
+    auto_headers = AutoHeaders.RECURSIVE_GLOB,  # https://fburl.com/424819295
+    deps = [
+        ":mnist_lib",
+    ],
+)
