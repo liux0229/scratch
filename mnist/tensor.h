@@ -24,7 +24,7 @@ class Tensor {
 
   friend void print(std::ostream& out, const Tensor& tensor, std::string tab);
 
- private:
+private:
   friend class Vector;
   friend class Matrix;
 

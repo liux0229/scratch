@@ -2,42 +2,45 @@
 
 #include <cmath>
 
+using namespace std;
+
 FCLayerOperator::FCLayerOperator(int width, IOperator input)
-    : dims_{input->dims()[0], width},
-      inputs_{input},
-      w_(Dims{width, input->dims()[0]}),
-      b_(input->dims()[0], Dims{width}) {
+    : Operator({input->dims()[0], width}, {input}),
+      w_(Dims{input->dims()[1], width}),
+      b_(Dims{input->dims()[0], width}) {
   assert(input->dims().size() == 2);
 }
 
-const Tensor& FCLayerOperator::compute() {
+Tensor& FCLayerOperator::compute() {
   Matrix w{w_};
   Matrix b{b_};
-  Matrix x{inputs_[0].get()};
-  output_ = x * w + b;
+  Matrix x{inputs_[0]->get()};
+
+  // Allow rvalue conversion to Matrix
+  auto product = x * w;
+  output_ = Matrix{product} + b;
   return get();
 }
 
-ReluOperator::ReluOperator(IOperator input)
-    : dims_(input->dims()), inputs_{input} {
+ReluOperator::ReluOperator(IOperator input) : Operator(input->dims(), {input}) {
   assert(input->dims().size() == 2);
 }
 
-const Tensor& ReluOperator::compute() {
-  output_ = inputs_[0].get();
-  Vector v{output_};
+Tensor& ReluOperator::compute() {
+  output_ = inputs_[0]->get();
+  Vector v{get()};
   for (int i = 0; i < v.n(); i++) {
-    v(i) = v(i) > 0 : v(i) : 0;
+    v(i) = v(i) > 0 ? v(i) : 0;
   }
   return get();
 }
 
 SoftmaxOperator::SoftmaxOperator(IOperator input)
-    : dims_(input->dims()), inputs_{input} {
+    : Operator(input->dims(), {input}) {
   assert(input->dims().size() == 2);
 }
 
-const Tensor& SoftmaxOperator::compute() {
+Tensor& SoftmaxOperator::compute() {
   output_ = Tensor{dims_};
   Matrix m{get()};
 
@@ -45,27 +48,27 @@ const Tensor& SoftmaxOperator::compute() {
 
   for (int i = 0; i < m.rows(); i++) {
     // It would be good if I have a row view
-    vector<Float> e(in.dims()[1]);
+    vector<Float> e(in.cols());
     Float sum = 0;
-    for (int j = 0; j < e.size(); j++) {
+    for (size_t j = 0; j < e.size(); j++) {
       e[j] = exp(-in(i, j));
       sum += e[j];
     }
-    for (int j = 0; j < e.size(); j++) {
+    for (size_t j = 0; j < e.size(); j++) {
       m(i, j) = e[j] / sum;
     }
   }
   return get();
 }
 
-LossOperator::LossOperator(IOperator input, IOperator label)
-    : dims_(input->dims()[0]), inputs_{input, label} {
+LossOperator::LossOperator(IInputOperator input, IOperator label)
+    : Operator({input->dims()[0]}, {input, label}) {
   assert(input->dims().size() == 2);
   assert(label->dims().size() == 1);
   assert(input->dims()[0] == label->dims()[0]);
 }
 
-const Tensor& LossOperator::compute() {
+Tensor& LossOperator::compute() {
   output_ = Tensor{dims_};
   Vector v{get()};
 

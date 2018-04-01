@@ -23,15 +23,15 @@ Tensor::Tensor(const vector<vector<Float>>& v) {
 }
 
 Tensor::Tensor(const ExampleList& es) {
-  assert(e.size() > 0);
+  assert(es.size() > 0);
   for (auto& e : es) {
-    assert(e.rows == e[0].rows;
-    assert(e.cols == e[0].cols;
+    assert(e.rows == es[0].rows);
+    assert(e.cols == es[0].cols);
   }
 
   auto n = es[0].rows * es[0].cols;
-  dims_ = Dims{e.size(), n};
-  data_.reserve(e.size() * n);
+  dims_ = Dims{static_cast<Dim>(es.size()), n};
+  data_.reserve(es.size() * n);
 
   for (auto& e : es) {
     for (auto& row : e.image) {
@@ -102,7 +102,7 @@ Vector::Vector(Tensor& tensor) : tensor_(&tensor) {
 }
 
 Matrix::Matrix(Tensor& tensor) : tensor_(&tensor) {
-  assert(tensor_->dims_.sie() == 2);
+  assert(tensor_->dims_.size() == 2);
 }
 
 Tensor operator*(const Matrix& a, const Matrix& b) {

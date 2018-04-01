@@ -4,14 +4,16 @@
 
 class Operator;
 using IOperator = std::shared_ptr<Operator>;
+using OperatorList = std::vector<IOperator>;
 
 class Operator {
  public:
+  Operator(Dims dims, OperatorList inputs) : dims_(dims), inputs_(inputs) {}
   virtual ~Operator() {}
   virtual const Dims& dims() const {
     return dims_;
   }
-  virtual const Tensor& compute() = 0;
+  virtual Tensor& compute() = 0;
   const Tensor& get() const {
     return output_.value();
   }
@@ -22,25 +24,27 @@ class Operator {
 
  protected:
   Dims dims_;
-  std::vector<IOperator> inputs_; // maybe this generic interface is not useful
+  OperatorList inputs_; // maybe this generic interface is not useful
   folly::Optional<Tensor> output_;
 };
 
 class InputOperator : public Operator {
  public:
-  InputOperator();
+  // Output tensor dimension can change
+  InputOperator() : Operator({}, {}) {}
   void load(const ExampleList& examples) {
     output_ = Tensor{examples};
   }
-  const Tensor& compute() override {
+  Tensor& compute() override {
     return get();
   }
 };
+using IInputOperator = std::shared_ptr<InputOperator>;
 
 class FCLayerOperator : public Operator {
  public:
   FCLayerOperator(int width, IOperator input);
-  const Tensor& compute() override;
+  Tensor& compute() override;
 
  private:
   Tensor w_;
@@ -50,17 +54,17 @@ class FCLayerOperator : public Operator {
 class ReluOperator : public Operator {
  public:
   ReluOperator(IOperator input);
-  const Tensor& compute() override;
+  Tensor& compute() override;
 };
 
 class SoftmaxOperator : public Operator {
  public:
   SoftmaxOperator(IOperator input);
-  const Tensor& compute() override;
+  Tensor& compute() override;
 };
 
 class LossOperator : public Operator {
  public:
-  LossOperator(IOperator input, IOperator label);
-  const Tensor& compute() override;
+  LossOperator(IInputOperator input, IOperator label);
+  Tensor& compute() override;
 };

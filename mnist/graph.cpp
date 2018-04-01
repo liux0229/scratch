@@ -4,7 +4,8 @@ using namespace std;
 
 class ForwardPassModel : public Model {
  public:
-  ForwardPassModel(IOperator input, IOperator output) {}
+  ForwardPassModel(IInputOperator input, IOperator output)
+      : input_(input), output_(output) {}
 
   Prediction predict(const Example& e) const override {
     input_->load(ExampleList{e});
@@ -13,19 +14,21 @@ class ForwardPassModel : public Model {
     Vector v{out};
     // use iterator
     Prediction pred;
-    for (int i = 0; i < out.n(); i++) {
-      pred[i] = v(i);
+    for (int i = 0; i < v.n(); i++) {
+      pred.prob[i] = v(i);
     }
+
+    return pred;
   }
 
  private:
-  IOperator input_;
+  IInputOperator input_;
   IOperator output_;
 };
 
 IModel GraphBuilder::buildMLP(int nclass, Dims hiddenLayerDims) const {
-  auto op = make_shared<InputOperator>();
-  auto input = op;
+  auto input = make_shared<InputOperator>();
+  IOperator op;
 
   for (auto dim : hiddenLayerDims) {
     op = make_shared<FCLayerOperator>(dim, op);
@@ -34,5 +37,5 @@ IModel GraphBuilder::buildMLP(int nclass, Dims hiddenLayerDims) const {
   op = make_shared<FCLayerOperator>(nclass, op);
   op = make_shared<SoftmaxOperator>(op);
 
-  return make_shared<ForwardPassModel>(input_, output_);
+  return make_shared<ForwardPassModel>(input, op);
 }
