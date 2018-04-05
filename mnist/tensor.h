@@ -6,8 +6,13 @@ struct Example;
 
 class Tensor {
  public:
+  enum class InitScheme {
+    Zero,
+    UniformRandom,
+  };
+
   Tensor(const std::vector<std::vector<Float>>& v);
-  Tensor(Dims dims);
+  Tensor(Dims dims, InitScheme scheme = InitScheme::Zero);
   Tensor(const ExampleList& es);
   // Tensor(const std::vector<Tensor> tensors);
 

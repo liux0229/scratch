@@ -4,10 +4,12 @@
 
 using namespace std;
 
+// This requires knowing the dimension of the input before building the graph
+// which needs to be changed (because # rows can be changed)
 FCLayerOperator::FCLayerOperator(int width, IOperator input)
     : Operator({input->dims()[0], width}, {input}),
-      w_(Dims{input->dims()[1], width}),
-      b_(Dims{input->dims()[0], width}) {
+      w_(Dims{input->dims()[1], width}, Tensor::InitScheme::UniformRandom),
+      b_(Dims{input->dims()[0], width}, Tensor::InitScheme::UniformRandom) {
   assert(input->dims().size() == 2);
 }
 

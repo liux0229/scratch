@@ -1,15 +1,30 @@
 #include "tensor.h"
+
 #include <cstring>
+#include <random>
 #include "common.h"
 
 using namespace std;
 
-Tensor::Tensor(Dims dims) : dims_(dims) {
+Tensor::Tensor(Dims dims, Tensor::InitScheme scheme) : dims_(dims) {
   int n = 1;
   for (auto d : dims_) {
     n *= d;
   }
   data_ = vector<Float>(n);
+
+  random_device rd;
+  mt19937 gen(rd());
+  uniform_real_distribution<> dist(-1.0, 1.0);
+  switch (scheme) {
+    case InitScheme::UniformRandom:
+      for (auto& x : data_) {
+        x = dist(gen);
+      }
+      break;
+    case InitScheme::Zero:
+      break;
+  }
 }
 
 Tensor::Tensor(const vector<vector<Float>>& v) {

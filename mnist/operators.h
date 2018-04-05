@@ -22,18 +22,21 @@ class Operator {
     return output_.value();
   }
 
+  const OperatorList& getInputs() const { return inputs_; }
+
  protected:
   Dims dims_;
-  OperatorList inputs_; // maybe this generic interface is not useful
+  OperatorList inputs_;
   folly::Optional<Tensor> output_;
 };
 
 class InputOperator : public Operator {
  public:
   // Output tensor dimension can change
-  InputOperator() : Operator({}, {}) {}
+  InputOperator() : Operator({0, 1}, {}) {}
   void load(const ExampleList& examples) {
     output_ = Tensor{examples};
+    dims_ = {static_cast<int>(examples.size())};
   }
   Tensor& compute() override {
     return get();

@@ -4,6 +4,7 @@
 
 enum class Algorithm {
   CONST,
+  MLP,
 };
 
 class Trainer {

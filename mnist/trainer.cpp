@@ -1,5 +1,6 @@
 #include <iostream>
 
+#include "graph.h"
 #include "trainer.h"
 
 using namespace std;
@@ -16,6 +17,8 @@ IModel Trainer::train(ExampleList examples, Algorithm algorithm) {
   switch (algorithm) {
     case Algorithm::CONST:
       return make_shared<ConstModel>();
+    case Algorithm::MLP:
+      return GraphBuilder{}.buildMLP(10, {5});
   }
   return nullptr;
 }

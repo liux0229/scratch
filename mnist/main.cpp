@@ -12,7 +12,8 @@ int main() {
   ExampleReader trainReader{"/data/users/rockyliu/fbsource/fbcode/experimental/rockyliu/mnist/data/train-images-idx3-ubyte",
                             "/data/users/rockyliu/fbsource/fbcode/experimental/rockyliu/mnist/data/train-labels-idx1-ubyte"};
 
-  auto model = Trainer::train(trainReader.readAll(), Algorithm::CONST);
+  // auto model = Trainer::train(trainReader.readAll(), Algorithm::CONST);
+  auto model = Trainer::train(trainReader.readAll(), Algorithm::MLP);
 
   ExampleReader testReader{"/data/users/rockyliu/fbsource/fbcode/experimental/rockyliu/mnist/data/t10k-images-idx3-ubyte",
                            "/data/users/rockyliu/fbsource/fbcode/experimental/rockyliu/mnist/data/t10k-labels-idx1-ubyte"};

@@ -2,6 +2,7 @@
 
 #include "operators.h"
 
- class GraphBuilder {
-   IModel buildMLP(int nclass, Dims hiddenLayerDims) const;
- };
+class GraphBuilder {
+ public:
+  IModel buildMLP(int nclass, Dims hiddenLayerDims) const;
+};
