@@ -22,9 +22,13 @@ class Operator {
     return output_.value();
   }
 
-  const OperatorList& getInputs() const { return inputs_; }
+  const OperatorList& getInputs() const {
+    return inputs_;
+  }
 
  protected:
+  // The first dimension is implicit: it is the # of examples
+  // Think of dim size as the size of one single example
   Dims dims_;
   OperatorList inputs_;
   folly::Optional<Tensor> output_;
@@ -32,11 +36,9 @@ class Operator {
 
 class InputOperator : public Operator {
  public:
-  // Output tensor dimension can change
-  InputOperator() : Operator({0, 1}, {}) {}
+  InputOperator(Dim inputDim) : Operator({inputDim}, {}) {}
   void load(const ExampleList& examples) {
     output_ = Tensor{examples};
-    dims_ = {static_cast<int>(examples.size())};
   }
   Tensor& compute() override {
     return get();

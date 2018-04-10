@@ -37,6 +37,7 @@ Tensor::Tensor(const vector<vector<Float>>& v) {
   }
 }
 
+// Produce a two dimensional tensor for now
 Tensor::Tensor(const ExampleList& es) {
   assert(es.size() > 0);
   for (auto& e : es) {
@@ -113,7 +114,9 @@ ostream& operator<<(ostream& out, const Tensor& tensor) {
 }
 
 Vector::Vector(Tensor& tensor) : tensor_(&tensor) {
-  assert(tensor.dims_.size() == 1);
+  // cout << tensor.dims_ << endl;
+  // assert(tensor.dims_.size() == 1);
+  ENFORCE(tensor.dims_.size() == 1);
 }
 
 Matrix::Matrix(Tensor& tensor) : tensor_(&tensor) {
@@ -139,7 +142,6 @@ Tensor operator*(const Matrix& a, const Matrix& b) {
 }
 
 Tensor operator+(const Matrix& a, const Matrix& b) {
-  // can extend to automatically expand iput matrix
   assert(a.rows() == b.rows());
   assert(a.cols() == b.cols());
 
@@ -150,6 +152,22 @@ Tensor operator+(const Matrix& a, const Matrix& b) {
   for (int i = 0; i < a.rows(); i++) {
     for (int j = 0; j < a.cols(); j++) {
       m(i, j) = a(i, j) + b(i, j);
+    }
+  }
+
+  return ret;
+}
+
+Tensor operator+(const Matrix& a, const Vector& b) {
+  assert(a.cols() == b.n());
+
+  Dims dims{a.rows(), a.cols()};
+  Tensor ret{dims};
+  Matrix m{ret};
+
+  for (int i = 0; i < a.rows(); i++) {
+    for (int j = 0; j < a.cols(); j++) {
+      m(i, j) = a(i, j) + b(j);
     }
   }
 

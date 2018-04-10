@@ -1,8 +1,8 @@
 #include "graph.h"
 
-#include <unordered_map>
 #include <functional>
 #include <queue>
+#include <unordered_map>
 
 using namespace std;
 
@@ -14,7 +14,7 @@ OperatorList topologicalSort(IOperator output, IOperator input) {
     OperatorList outgoing;
   };
   unordered_map<Operator*, Entry> m;
-  function<void (IOperator)> iterator;
+  function<void(IOperator)> iterator;
   iterator = [&m, &iterator](IOperator op) {
     for (auto in : op->getInputs()) {
       auto ret = m.emplace(in.get(), Entry{in->getInputs().size()});
@@ -72,10 +72,11 @@ class ForwardPassModel : public Model {
   OperatorList forwardOrder_;
 };
 
-}
+} // namespace
 
-IModel GraphBuilder::buildMLP(int nclass, Dims hiddenLayerDims) const {
-  auto input = make_shared<InputOperator>();
+IModel GraphBuilder::buildMLP(Dim inputDim, int nclass, Dims hiddenLayerDims)
+    const {
+  auto input = make_shared<InputOperator>(inputDim);
   IOperator op = input;
 
   for (auto dim : hiddenLayerDims) {

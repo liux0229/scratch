@@ -7,25 +7,26 @@ using namespace std;
 // This requires knowing the dimension of the input before building the graph
 // which needs to be changed (because # rows can be changed)
 FCLayerOperator::FCLayerOperator(int width, IOperator input)
-    : Operator({input->dims()[0], width}, {input}),
-      w_(Dims{input->dims()[1], width}, Tensor::InitScheme::UniformRandom),
-      b_(Dims{input->dims()[0], width}, Tensor::InitScheme::UniformRandom) {
-  assert(input->dims().size() == 2);
+    : Operator({width}, {input}),
+      w_(Dims{input->dims()[0], width}, Tensor::InitScheme::UniformRandom),
+      b_(Dims{width}, Tensor::InitScheme::UniformRandom) {
+  assert(input->dims().size() == 1);
 }
 
 Tensor& FCLayerOperator::compute() {
   Matrix w{w_};
-  Matrix b{b_};
+  Vector b{b_};
   Matrix x{inputs_[0]->get()};
 
   // Allow rvalue conversion to Matrix
+  cout << x.rows() << " " << x.cols() << " " << w.rows() << " " << w.cols() << endl;
   auto product = x * w;
   output_ = Matrix{product} + b;
   return get();
 }
 
 ReluOperator::ReluOperator(IOperator input) : Operator(input->dims(), {input}) {
-  assert(input->dims().size() == 2);
+  assert(input->dims().size() == 1);
 }
 
 Tensor& ReluOperator::compute() {
@@ -39,7 +40,7 @@ Tensor& ReluOperator::compute() {
 
 SoftmaxOperator::SoftmaxOperator(IOperator input)
     : Operator(input->dims(), {input}) {
-  assert(input->dims().size() == 2);
+  assert(input->dims().size() == 1);
 }
 
 Tensor& SoftmaxOperator::compute() {
@@ -64,10 +65,9 @@ Tensor& SoftmaxOperator::compute() {
 }
 
 LossOperator::LossOperator(IInputOperator input, IOperator label)
-    : Operator({input->dims()[0]}, {input, label}) {
-  assert(input->dims().size() == 2);
-  assert(label->dims().size() == 1);
-  assert(input->dims()[0] == label->dims()[0]);
+    : Operator({}, {input, label}) {
+  assert(input->dims().size() == 1);
+  assert(label->dims().size() == 0);
 }
 
 Tensor& LossOperator::compute() {
@@ -76,6 +76,8 @@ Tensor& LossOperator::compute() {
 
   Matrix in{inputs_[0]->get()};
   Vector label{inputs_[1]->get()};
+
+  assert(in.rows() == label.n());
 
   for (int i = 0; i < v.n(); i++) {
     auto x = label(i);

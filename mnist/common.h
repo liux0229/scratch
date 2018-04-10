@@ -13,6 +13,9 @@ const int N_IMAGE = 28;
 const int N_CLASS = 10;
 using Float = float;
 
+using Dim = int;
+using Dims = std::vector<Dim>;
+
 struct Example {
   void normalize();
 
@@ -50,3 +53,29 @@ class Model {
   virtual Prediction predict(const Example& e) const = 0;
 };
 using IModel = std::shared_ptr<Model>;
+
+template <typename T>
+std::ostream& operator<<(std::ostream& out, const std::vector<T>& v) {
+  out << "[";
+  for (auto& x : v) {
+    out << x << " ";
+  }
+  out << "]";
+
+  return out;
+}
+
+// class Exception : public std::exception {
+// public:
+//   std::string what() const override {
+//
+//   }
+// };
+
+// _tmp ? _tmp : throw std::exception(__FILE__, __LINE__, __FUNCTION__, #e);
+
+#define ENFORCE(e, ...)                   \
+  ({                                      \
+    auto const& _tmp = (e);               \
+    _tmp ? _tmp : throw std::exception(); \
+  })

@@ -18,7 +18,7 @@ IModel Trainer::train(ExampleList examples, Algorithm algorithm) {
     case Algorithm::CONST:
       return make_shared<ConstModel>();
     case Algorithm::MLP:
-      return GraphBuilder{}.buildMLP(10, {5});
+      return GraphBuilder{}.buildMLP(Tensor{examples}.dims()[1], 10, {5});
   }
   return nullptr;
 }

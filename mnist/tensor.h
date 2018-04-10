@@ -1,7 +1,5 @@
 #include "common.h"
 
-using Dim = int;
-using Dims = std::vector<Dim>;
 struct Example;
 
 class Tensor {
@@ -19,6 +17,7 @@ class Tensor {
   Dim total() const {
     return data_.size();
   }
+  Dims dims() const { return dims_; }
 
   // Make this more efficient
   Tensor operator[](Dim x) const;
@@ -81,3 +80,4 @@ class Matrix {
 
 Tensor operator*(const Matrix& a, const Matrix& b);
 Tensor operator+(const Matrix& a, const Matrix& b);
+Tensor operator+(const Matrix& a, const Vector& b);

@@ -4,5 +4,5 @@
 
 class GraphBuilder {
  public:
-  IModel buildMLP(int nclass, Dims hiddenLayerDims) const;
+  IModel buildMLP(Dim inputDim, int nclass, Dims hiddenLayerDims) const;
 };
