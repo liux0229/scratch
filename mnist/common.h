@@ -65,6 +65,14 @@ std::ostream& operator<<(std::ostream& out, const std::vector<T>& v) {
   return out;
 }
 
+void printStackTrace();
+
+#define SCHECK(f)       \
+  if (!(f)) {          \
+    printStackTrace(); \
+    assert(f);         \
+  }
+
 // class Exception : public std::exception {
 // public:
 //   std::string what() const override {
@@ -74,8 +82,8 @@ std::ostream& operator<<(std::ostream& out, const std::vector<T>& v) {
 
 // _tmp ? _tmp : throw std::exception(__FILE__, __LINE__, __FUNCTION__, #e);
 
-#define ENFORCE(e, ...)                   \
-  ({                                      \
-    auto const& _tmp = (e);               \
-    _tmp ? _tmp : throw std::exception(); \
-  })
+// #define ENFORCE(e, ...)                   \
+//   ({                                      \
+//     auto const& _tmp = (e);               \
+//     _tmp ? _tmp : throw std::exception(); \
+//   })

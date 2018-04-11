@@ -16,10 +16,13 @@ OperatorList topologicalSort(IOperator output, IOperator input) {
   unordered_map<Operator*, Entry> m;
   function<void(IOperator)> iterator;
   iterator = [&m, &iterator](IOperator op) {
+    auto ret = m.emplace(op.get(), Entry{op->getInputs().size()});
+    if (!ret.second) {
+      return;
+    }
     for (auto in : op->getInputs()) {
-      auto ret = m.emplace(in.get(), Entry{in->getInputs().size()});
-      ret.first->second.outgoing.push_back(op);
       iterator(in);
+      m[in.get()].outgoing.push_back(op);
     }
   };
   iterator(output);
@@ -30,8 +33,11 @@ OperatorList topologicalSort(IOperator output, IOperator input) {
   while (!q.empty()) {
     auto op = q.front();
     q.pop();
+    // cout << ": " << op->name() << endl;
     ret.push_back(op);
     for (auto edge : m[op.get()].outgoing) {
+      // cout << " --> " << edge->name() << " " << m[edge.get()].indegree <<
+      // endl;
       if (--m[edge.get()].indegree == 0) {
         q.push(edge);
       }
@@ -47,6 +53,9 @@ class ForwardPassModel : public Model {
       : input_(input), output_(output) {
     // Sort the operators topologically
     forwardOrder_ = topologicalSort(output, input);
+    // for (auto op : forwardOrder_) {
+    //   cout << op->name() << endl;
+    // }
   }
 
   Prediction predict(const Example& e) const override {
@@ -55,12 +64,13 @@ class ForwardPassModel : public Model {
       op->compute();
     }
     auto& out = output_->get();
+    // cout << "out dim: " << out << endl;
 
-    Vector v{out};
-    // use iterator
+    Matrix m{out};
+    // I want a row view
     Prediction pred;
-    for (int i = 0; i < v.n(); i++) {
-      pred.prob[i] = v(i);
+    for (int i = 0; i < m.cols(); i++) {
+      pred.prob[i] = m(0, i);
     }
 
     return pred;

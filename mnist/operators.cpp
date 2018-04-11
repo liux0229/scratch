@@ -10,7 +10,7 @@ FCLayerOperator::FCLayerOperator(int width, IOperator input)
     : Operator({width}, {input}),
       w_(Dims{input->dims()[0], width}, Tensor::InitScheme::UniformRandom),
       b_(Dims{width}, Tensor::InitScheme::UniformRandom) {
-  assert(input->dims().size() == 1);
+  SCHECK(input->dims().size() == 1);
 }
 
 Tensor& FCLayerOperator::compute() {
@@ -19,32 +19,35 @@ Tensor& FCLayerOperator::compute() {
   Matrix x{inputs_[0]->get()};
 
   // Allow rvalue conversion to Matrix
-  cout << x.rows() << " " << x.cols() << " " << w.rows() << " " << w.cols() << endl;
   auto product = x * w;
   output_ = Matrix{product} + b;
+  // cout << "FC output: " << get().dims() << endl;
   return get();
 }
 
 ReluOperator::ReluOperator(IOperator input) : Operator(input->dims(), {input}) {
-  assert(input->dims().size() == 1);
+  SCHECK(input->dims().size() == 1);
 }
 
 Tensor& ReluOperator::compute() {
   output_ = inputs_[0]->get();
-  Vector v{get()};
-  for (int i = 0; i < v.n(); i++) {
-    v(i) = v(i) > 0 ? v(i) : 0;
+  Matrix m{get()};
+  for (int i = 0; i < m.rows(); ++i) {
+    for (int j = 0; j < m.cols(); ++j) {
+      m(i, j) = m(i, j) > 0 ? m(i, j) : 0;
+    }
   }
   return get();
 }
 
 SoftmaxOperator::SoftmaxOperator(IOperator input)
     : Operator(input->dims(), {input}) {
-  assert(input->dims().size() == 1);
+  SCHECK(input->dims().size() == 1);
 }
 
 Tensor& SoftmaxOperator::compute() {
-  output_ = Tensor{dims_};
+  output_ = Tensor{inputs_[0]->get().dims()};
+  // cout << get().dims() << endl;
   Matrix m{get()};
 
   Matrix in{inputs_[0]->get()};
@@ -66,8 +69,8 @@ Tensor& SoftmaxOperator::compute() {
 
 LossOperator::LossOperator(IInputOperator input, IOperator label)
     : Operator({}, {input, label}) {
-  assert(input->dims().size() == 1);
-  assert(label->dims().size() == 0);
+  SCHECK(input->dims().size() == 1);
+  SCHECK(label->dims().size() == 0);
 }
 
 Tensor& LossOperator::compute() {
@@ -77,11 +80,11 @@ Tensor& LossOperator::compute() {
   Matrix in{inputs_[0]->get()};
   Vector label{inputs_[1]->get()};
 
-  assert(in.rows() == label.n());
+  SCHECK(in.rows() == label.n());
 
   for (int i = 0; i < v.n(); i++) {
     auto x = label(i);
-    assert(x < in.cols());
+    SCHECK(x < in.cols());
     v(i) = -log(in(i, x));
   }
   return get();

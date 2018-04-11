@@ -39,10 +39,10 @@ Tensor::Tensor(const vector<vector<Float>>& v) {
 
 // Produce a two dimensional tensor for now
 Tensor::Tensor(const ExampleList& es) {
-  assert(es.size() > 0);
+  SCHECK(es.size() > 0);
   for (auto& e : es) {
-    assert(e.rows == es[0].rows);
-    assert(e.cols == es[0].cols);
+    SCHECK(e.rows == es[0].rows);
+    SCHECK(e.cols == es[0].cols);
   }
 
   auto n = es[0].rows * es[0].cols;
@@ -62,7 +62,7 @@ Tensor::Tensor(const ExampleList& es) {
 Tensor::Tensor(const vector<Tensor> tensors) {
   for (auto& t : tensors) {
     for (size_t i = 0; i < t.dims_.size(); i++) {
-      assert(t.dims_[i] == tensors[0].dims_[i]);
+      SCHECK(t.dims_[i] == tensors[0].dims_[i]);
     }
   }
 
@@ -79,8 +79,8 @@ Tensor::Tensor(const vector<Tensor> tensors) {
 */
 
 Tensor Tensor::operator[](Dim x) const {
-  assert(dims_.size() > 1);
-  assert(x < dims_[0]);
+  SCHECK(dims_.size() > 1);
+  SCHECK(x < dims_[0]);
 
   Tensor ret{Dims{dims_.begin() + 1, dims_.end()}};
   copy(
@@ -115,16 +115,15 @@ ostream& operator<<(ostream& out, const Tensor& tensor) {
 
 Vector::Vector(Tensor& tensor) : tensor_(&tensor) {
   // cout << tensor.dims_ << endl;
-  // assert(tensor.dims_.size() == 1);
-  ENFORCE(tensor.dims_.size() == 1);
+  SCHECK(tensor.dims_.size() == 1);
 }
 
 Matrix::Matrix(Tensor& tensor) : tensor_(&tensor) {
-  assert(tensor_->dims_.size() == 2);
+  SCHECK(tensor_->dims_.size() == 2);
 }
 
 Tensor operator*(const Matrix& a, const Matrix& b) {
-  assert(a.cols() == b.rows());
+  SCHECK(a.cols() == b.rows());
 
   Dims dims{a.rows(), b.cols()};
   Tensor ret{dims};
@@ -142,8 +141,8 @@ Tensor operator*(const Matrix& a, const Matrix& b) {
 }
 
 Tensor operator+(const Matrix& a, const Matrix& b) {
-  assert(a.rows() == b.rows());
-  assert(a.cols() == b.cols());
+  SCHECK(a.rows() == b.rows());
+  SCHECK(a.cols() == b.cols());
 
   Dims dims{a.rows(), a.cols()};
   Tensor ret{dims};
@@ -159,7 +158,7 @@ Tensor operator+(const Matrix& a, const Matrix& b) {
 }
 
 Tensor operator+(const Matrix& a, const Vector& b) {
-  assert(a.cols() == b.n());
+  SCHECK(a.cols() == b.n());
 
   Dims dims{a.rows(), a.cols()};
   Tensor ret{dims};

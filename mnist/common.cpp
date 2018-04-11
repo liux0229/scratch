@@ -1,3 +1,7 @@
+#include <execinfo.h>
+#include <signal.h>
+#include <unistd.h>
+
 #include <iostream>
 
 #include "common.h"
@@ -60,4 +64,14 @@ ExampleList ExampleReader::readAll() {
     ret.push_back(e.value());
   }
   return ret;
+}
+
+void printStackTrace() {
+  void* array[10];
+  size_t size;
+
+  // get void*'s for all entries on the stack
+  size = backtrace(array, 10);
+
+  backtrace_symbols_fd(array, size, STDERR_FILENO);
 }

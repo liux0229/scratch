@@ -10,6 +10,7 @@ class Operator {
  public:
   Operator(Dims dims, OperatorList inputs) : dims_(dims), inputs_(inputs) {}
   virtual ~Operator() {}
+  virtual std::string name() const = 0;
   virtual const Dims& dims() const {
     return dims_;
   }
@@ -37,6 +38,9 @@ class Operator {
 class InputOperator : public Operator {
  public:
   InputOperator(Dim inputDim) : Operator({inputDim}, {}) {}
+  std::string name() const override {
+    return "input";
+  }
   void load(const ExampleList& examples) {
     output_ = Tensor{examples};
   }
@@ -49,6 +53,9 @@ using IInputOperator = std::shared_ptr<InputOperator>;
 class FCLayerOperator : public Operator {
  public:
   FCLayerOperator(int width, IOperator input);
+  std::string name() const override {
+    return "fc-layer";
+  }
   Tensor& compute() override;
 
  private:
@@ -59,17 +66,26 @@ class FCLayerOperator : public Operator {
 class ReluOperator : public Operator {
  public:
   ReluOperator(IOperator input);
+  std::string name() const override {
+    return "relu";
+  }
   Tensor& compute() override;
 };
 
 class SoftmaxOperator : public Operator {
  public:
   SoftmaxOperator(IOperator input);
+  std::string name() const override {
+    return "softmax";
+  }
   Tensor& compute() override;
 };
 
 class LossOperator : public Operator {
  public:
   LossOperator(IInputOperator input, IOperator label);
+  std::string name() const override {
+    return "loss";
+  }
   Tensor& compute() override;
 };
