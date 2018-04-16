@@ -2,6 +2,8 @@
 
 #include "tensor.h"
 
+#include <functional>
+
 class Operator;
 using IOperator = std::shared_ptr<Operator>;
 using OperatorList = std::vector<IOperator>;
@@ -27,22 +29,32 @@ class Operator {
     return inputs_;
   }
 
+  // Use the brute force way to compute gradient for debugging purposes
+  Gradient computeGradientDebug(const std::function<double()>& loss);
+
+  virtual void applyGradient(const Gradient& g) {}
+
  protected:
   // The first dimension is implicit: it is the # of examples
   // Think of dim size as the size of one single example
   Dims dims_;
   OperatorList inputs_;
   folly::Optional<Tensor> output_;
+
+ private:
+  virtual std::function<Tensor*()> getParameters() {
+    return []() { return nullptr; };
+  }
 };
 
 class InputOperator : public Operator {
  public:
-  InputOperator(Dim inputDim) : Operator({inputDim}, {}) {}
+  InputOperator(Dims inputDims) : Operator(inputDims, {}) {}
   std::string name() const override {
     return "input";
   }
-  void load(const ExampleList& examples) {
-    output_ = Tensor{examples};
+  void load(const ExampleList& examples, bool label = false) {
+    output_ = Tensor{examples, label};
   }
   Tensor& compute() override {
     return get();
@@ -58,7 +70,15 @@ class FCLayerOperator : public Operator {
   }
   Tensor& compute() override;
 
+  void applyGradient(const Gradient& g) {
+    SCHECK(g.size() == 2);
+    w_ += g[0];
+    b_ += g[1];
+  }
+
  private:
+  std::function<Tensor*()> getParameters() override;
+
   Tensor w_;
   Tensor b_;
 };
@@ -83,7 +103,7 @@ class SoftmaxOperator : public Operator {
 
 class LossOperator : public Operator {
  public:
-  LossOperator(IInputOperator input, IOperator label);
+  LossOperator(IOperator input, IOperator label);
   std::string name() const override {
     return "loss";
   }

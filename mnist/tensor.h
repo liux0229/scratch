@@ -11,13 +11,23 @@ class Tensor {
 
   Tensor(const std::vector<std::vector<Float>>& v);
   Tensor(Dims dims, InitScheme scheme = InitScheme::Zero);
-  Tensor(const ExampleList& es);
+  Tensor(const ExampleList& es, bool label);
   // Tensor(const std::vector<Tensor> tensors);
 
   Dim total() const {
     return data_.size();
   }
-  Dims dims() const { return dims_; }
+  Dims dims() const {
+    return dims_;
+  }
+
+  // Return the raw data
+  std::vector<Float>& data() {
+    return data_;
+  }
+  const std::vector<Float>& data() const {
+    return data_;
+  }
 
   // Make this more efficient
   Tensor operator[](Dim x) const;
@@ -28,7 +38,9 @@ class Tensor {
 
   friend void print(std::ostream& out, const Tensor& tensor, std::string tab);
 
-private:
+ private:
+  void loadLabel(const ExampleList& es);
+
   friend class Vector;
   friend class Matrix;
 
@@ -37,6 +49,21 @@ private:
 };
 
 std::ostream& operator<<(std::ostream&, const Tensor& tensor);
+
+inline Tensor& operator+=(Tensor& x, const Tensor& y) {
+  SCHECK(x.dims() == y.dims());
+  for (size_t k = 0; k < x.data().size(); ++k) {
+    x.data()[k] += y.data()[k];
+  }
+  return x;
+}
+
+inline Tensor& operator*=(Tensor& x, double y) {
+  for (auto& e : x.data()) {
+    e *= y;
+  }
+  return x;
+}
 
 // A view on top of the general tensor
 class Vector {
@@ -81,3 +108,8 @@ class Matrix {
 Tensor operator*(const Matrix& a, const Matrix& b);
 Tensor operator+(const Matrix& a, const Matrix& b);
 Tensor operator+(const Matrix& a, const Vector& b);
+
+using Gradient = std::vector<Tensor>;
+using GradientList = std::vector<Gradient>;
+
+Gradient operator*(const Gradient& g, double a);

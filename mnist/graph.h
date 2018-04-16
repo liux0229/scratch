@@ -4,5 +4,8 @@
 
 class GraphBuilder {
  public:
-  IModel buildMLP(Dim inputDim, int nclass, Dims hiddenLayerDims) const;
+  static OperatorList topologicalSort(IOperator output, IOperator input);
+  // return <input, output>
+  static std::pair<IInputOperator, IOperator>
+  buildMLP(Dim inputDim, int nclass, Dims hiddenLayerDims);
 };

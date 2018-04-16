@@ -38,8 +38,14 @@ Tensor::Tensor(const vector<vector<Float>>& v) {
 }
 
 // Produce a two dimensional tensor for now
-Tensor::Tensor(const ExampleList& es) {
+Tensor::Tensor(const ExampleList& es, bool label) {
   SCHECK(es.size() > 0);
+
+  if (label) {
+    loadLabel(es);
+    return;
+  }
+
   for (auto& e : es) {
     SCHECK(e.rows == es[0].rows);
     SCHECK(e.cols == es[0].cols);
@@ -55,6 +61,15 @@ Tensor::Tensor(const ExampleList& es) {
         data_.push_back(c);
       }
     }
+  }
+}
+
+void Tensor::loadLabel(const ExampleList& es) {
+  dims_ = Dims{static_cast<Dim>(es.size())};
+  data_.reserve(es.size());
+
+  for (auto& e : es) {
+    data_.push_back(static_cast<double>(e.label));
   }
 }
 
@@ -171,4 +186,12 @@ Tensor operator+(const Matrix& a, const Vector& b) {
   }
 
   return ret;
+}
+
+Gradient operator*(const Gradient& g, double a) {
+  auto r = g;
+  for (auto& gr : r) {
+    gr *= a;
+  }
+  return r;
 }
