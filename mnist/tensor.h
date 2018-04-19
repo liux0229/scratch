@@ -111,5 +111,6 @@ Tensor operator+(const Matrix& a, const Vector& b);
 
 using Gradient = std::vector<Tensor>;
 using GradientList = std::vector<Gradient>;
+using GradientPair = std::pair<Gradient, Gradient>;
 
 Gradient operator*(const Gradient& g, double a);

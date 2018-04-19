@@ -4,6 +4,15 @@
 
 using namespace std;
 
+IBackPropOperator Operator::getBackPropOperator() {
+  if (backPropOp_) {
+    return backPropOp_;
+  }
+  backPropOp_ = make_shared<BackPropOperator>(
+      name() + "_grad",
+      [this](const BackPropOperator* op) { return gradientFunc(op); });
+}
+
 Gradient Operator::computeGradientDebug(const std::function<double()>& loss) {
   const double eps = 1e-3;
   Gradient gs;
@@ -85,6 +94,29 @@ Tensor& ReluOperator::compute() {
     }
   }
   return get();
+}
+
+GradientPair ReluOperator::gradientFunc(
+    const BackPropOperator* op) const override {
+  auto& parents = op->parents();
+  // I can make this more generic (the ReLu output is consumed by multiple
+  // operators), but let's simplify for now
+  SCHECK(parents.size() == 1);
+
+  Gradient inputGradient;
+
+  auto g = parents[0].op->inputGradient()[parents[0].inputIndex];
+  auto& output = get();
+  SCHECK(g.dims() == output.dims());
+  for (size_t i = 0; i < g.data().size(); ++i) {
+    if (output.data()[i] <= 0) {
+      g.data()[i] = 0;
+    }
+  }
+
+  inputGradient.push_back(move(g));
+
+  return make_pair(inputGradient, Gradient{});
 }
 
 SoftmaxOperator::SoftmaxOperator(IOperator input)

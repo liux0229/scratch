@@ -8,6 +8,9 @@ class Operator;
 using IOperator = std::shared_ptr<Operator>;
 using OperatorList = std::vector<IOperator>;
 
+class BackPropOperator;
+using IBackPropOperator = std::shared_ptr<BackPropOperator>;
+
 class Operator {
  public:
   Operator(Dims dims, OperatorList inputs) : dims_(dims), inputs_(inputs) {}
@@ -34,6 +37,8 @@ class Operator {
 
   virtual void applyGradient(const Gradient& g) {}
 
+  IBackPropOperator getBackPropOperator();
+
  protected:
   // The first dimension is implicit: it is the # of examples
   // Think of dim size as the size of one single example
@@ -41,10 +46,64 @@ class Operator {
   OperatorList inputs_;
   folly::Optional<Tensor> output_;
 
+  // TODO
+  // 1. getBackPropOperator() stores a cache
+  // 2. create back-prop operators when creating the backward graph
+  // 3. requery the backprop operator and create input edges (add edges later)
+  // 4. Each input has its own gradient
+  // 5. Back Prop operator that is independent. parent->get() should take an
+  // index
  private:
   virtual std::function<Tensor*()> getParameters() {
     return []() { return nullptr; };
   }
+
+  // TODO: make this pure virtual
+  virtual GradientPair gradientFunc(const BackPropOperator*) const {
+      return std::make_pair(Gradient{}, Gradient{}});
+  }
+
+  IBackPropOperator backPropOp_ = nullptr;
+};
+
+class BackPropOperator {
+ public:
+  // A parent consumes the output of this operator in the forward pass
+  struct Parent {
+    IOperator op;
+    int inputIndex; // The index of this operator in the inputs_ of the parent
+  };
+  using ParentList = std::vector<Parent>;
+
+  using RunBackProp = std::function<GradientPair(const BackPropOperator*)>;
+  BackPropOperator(std::string name, const RunBackProp& run)
+      : name_(name), run_(run) {}
+
+  std::string name() const {
+    return name_;
+  }
+  void addParent(IOperator op, int inputIndex) {
+    parents_.push_back(Parent{op, inputIndex});
+  }
+
+  void runBackProp() {
+    std::tie(inputGradient_, parameterGradient_) = run_(this);
+  }
+  const Gradient& inputGradient() const {
+    return inputGradient_;
+  }
+  const Gradient& parameterGradient() const {
+    return parameterGradient_;
+  }
+
+  const ParentList& parents() const { return parents_; }
+
+ private:
+  std::string name_;
+  RunBackProp run_;
+  Gradient parameterGradient_;
+  Gradient inputGradient_;
+  ParentList parents_;
 };
 
 class InputOperator : public Operator {
@@ -58,6 +117,9 @@ class InputOperator : public Operator {
   }
   Tensor& compute() override {
     return get();
+  }
+  IBackPropOperator getBackPropOperator() const override {
+    return nullptr;
   }
 };
 using IInputOperator = std::shared_ptr<InputOperator>;
@@ -90,6 +152,7 @@ class ReluOperator : public Operator {
     return "relu";
   }
   Tensor& compute() override;
+  IBackPropOperator getBackPropOperator() const override;
 };
 
 class SoftmaxOperator : public Operator {
