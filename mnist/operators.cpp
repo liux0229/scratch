@@ -11,6 +11,7 @@ IBackPropOperator Operator::getBackPropOperator() {
   backPropOp_ = make_shared<BackPropOperator>(
       name() + "_grad",
       [this](const BackPropOperator* op) { return gradientFunc(op); });
+  return backPropOp_;
 }
 
 Gradient Operator::computeGradientDebug(const std::function<double()>& loss) {
@@ -96,8 +97,7 @@ Tensor& ReluOperator::compute() {
   return get();
 }
 
-GradientPair ReluOperator::gradientFunc(
-    const BackPropOperator* op) const override {
+GradientPair ReluOperator::gradientFunc(const BackPropOperator* op) const {
   auto& parents = op->parents();
   // I can make this more generic (the ReLu output is consumed by multiple
   // operators), but let's simplify for now
@@ -146,6 +146,41 @@ Tensor& SoftmaxOperator::compute() {
   return get();
 }
 
+GradientPair SoftmaxOperator::gradientFunc(const BackPropOperator* op) const {
+  auto& parents = op->parents();
+  SCHECK(parents.size() == 1);
+  auto& parentG = parents[0].op->inputGradient()[parents[0].inputIndex];
+  Matrix parentM{parentG};
+
+  Tensor g{inputs_[0]->get().dims()};
+  Matrix m{g};
+  Matrix out{get()};
+
+  SCHECK(m.dims() == out.dims());
+  SCHECK(parentM.dims() == m.dims());
+
+  for (int i = 0; i < m.rows(); ++i) {
+    int label = -1;
+    for (int j = 0; j < m.cols(); ++j) {
+      if (parentG(i, j) > 0) {
+        label = j;
+        break;
+      }
+    }
+    SCHECK(label != -1);
+
+    for (int j = 0; j < m.cols(); ++j) {
+      if (j == label) {
+        m(i, j) = out(i, j) - out(i, j) * out(i, j);
+      } else {
+        m(i, j) = -out(i, label) * out(i, j);
+      }
+    }
+  }
+
+  return make_pair(Gradient{move(g)}, Gradient{});
+}
+
 LossOperator::LossOperator(IOperator input, IOperator label)
     : Operator({}, {input, label}) {
   SCHECK(input->dims().size() == 1);
@@ -178,4 +213,17 @@ Tensor& LossOperator::compute() {
   Vector{get()}(0) = s;
 
   return get();
+}
+
+GradientPair LossOperator::gradientFunc(const BackPropOperator* op) const {
+  Tensor g{inputs_[0]->get().dims(), Tensor::InitScheme::Zero};
+  Matrix m{g};
+  Matrix in{inputs_[0]->get()};
+  Vector label{inputs_[1]->get()};
+  for (int i = 0; i < m.rows(); ++i) {
+    SCHECK(label(i) < m.cols());
+    m(i, label(i)) = 1 / in(i, label(i));
+  }
+
+  return make_pair(Gradient{move(g)}, Gradient{});
 }

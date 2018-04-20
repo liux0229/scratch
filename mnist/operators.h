@@ -58,10 +58,7 @@ class Operator {
     return []() { return nullptr; };
   }
 
-  // TODO: make this pure virtual
-  virtual GradientPair gradientFunc(const BackPropOperator*) const {
-      return std::make_pair(Gradient{}, Gradient{}});
-  }
+  virtual GradientPair gradientFunc(const BackPropOperator*) const = 0;
 
   IBackPropOperator backPropOp_ = nullptr;
 };
@@ -70,7 +67,7 @@ class BackPropOperator {
  public:
   // A parent consumes the output of this operator in the forward pass
   struct Parent {
-    IOperator op;
+    IBackPropOperator op;
     int inputIndex; // The index of this operator in the inputs_ of the parent
   };
   using ParentList = std::vector<Parent>;
@@ -82,13 +79,14 @@ class BackPropOperator {
   std::string name() const {
     return name_;
   }
-  void addParent(IOperator op, int inputIndex) {
+  void addParent(IBackPropOperator op, int inputIndex) {
     parents_.push_back(Parent{op, inputIndex});
   }
 
   void runBackProp() {
     std::tie(inputGradient_, parameterGradient_) = run_(this);
   }
+  // TODO: fix this content (const Matrix?)
   const Gradient& inputGradient() const {
     return inputGradient_;
   }
@@ -96,7 +94,9 @@ class BackPropOperator {
     return parameterGradient_;
   }
 
-  const ParentList& parents() const { return parents_; }
+  const ParentList& parents() const {
+    return parents_;
+  }
 
  private:
   std::string name_;
@@ -118,8 +118,10 @@ class InputOperator : public Operator {
   Tensor& compute() override {
     return get();
   }
-  IBackPropOperator getBackPropOperator() const override {
-    return nullptr;
+
+ private:
+  GradientPair gradientFunc(const BackPropOperator*) const override {
+    return std::make_pair(Gradient{}, Gradient{});
   }
 };
 using IInputOperator = std::shared_ptr<InputOperator>;
@@ -140,6 +142,7 @@ class FCLayerOperator : public Operator {
 
  private:
   std::function<Tensor*()> getParameters() override;
+  GradientPair gradientFunc(const BackPropOperator*) const override;
 
   Tensor w_;
   Tensor b_;
@@ -152,7 +155,9 @@ class ReluOperator : public Operator {
     return "relu";
   }
   Tensor& compute() override;
-  IBackPropOperator getBackPropOperator() const override;
+
+ private:
+  GradientPair gradientFunc(const BackPropOperator*) const override;
 };
 
 class SoftmaxOperator : public Operator {
@@ -162,6 +167,9 @@ class SoftmaxOperator : public Operator {
     return "softmax";
   }
   Tensor& compute() override;
+
+ private:
+  GradientPair gradientFunc(const BackPropOperator*) const override;
 };
 
 class LossOperator : public Operator {
@@ -171,4 +179,7 @@ class LossOperator : public Operator {
     return "loss";
   }
   Tensor& compute() override;
+
+ private:
+  GradientPair gradientFunc(const BackPropOperator*) const override;
 };
