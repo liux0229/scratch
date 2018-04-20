@@ -10,7 +10,7 @@ IBackPropOperator Operator::getBackPropOperator() {
   }
   backPropOp_ = make_shared<BackPropOperator>(
       name() + "_grad",
-      [this](const BackPropOperator* op) { return gradientFunc(op); });
+      [this](BackPropOperator* op) { return gradientFunc(op); });
   return backPropOp_;
 }
 
@@ -82,6 +82,14 @@ std::function<Tensor*()> FCLayerOperator::getParameters() {
   };
 }
 
+GradientPair FCLayerOperator::gradientFunc(BackPropOperator* op) const {
+  // input gradient = parent gradient * W^T
+
+  // w'(i, j) = x(i) * h'(j) and average over all examples
+  // do we need to fuse averages from the beginning?
+  // why does this node need to know there is an average operation?
+}
+
 ReluOperator::ReluOperator(IOperator input) : Operator(input->dims(), {input}) {
   SCHECK(input->dims().size() == 1);
 }
@@ -97,7 +105,7 @@ Tensor& ReluOperator::compute() {
   return get();
 }
 
-GradientPair ReluOperator::gradientFunc(const BackPropOperator* op) const {
+GradientPair ReluOperator::gradientFunc(BackPropOperator* op) const {
   auto& parents = op->parents();
   // I can make this more generic (the ReLu output is consumed by multiple
   // operators), but let's simplify for now
@@ -146,7 +154,7 @@ Tensor& SoftmaxOperator::compute() {
   return get();
 }
 
-GradientPair SoftmaxOperator::gradientFunc(const BackPropOperator* op) const {
+GradientPair SoftmaxOperator::gradientFunc(BackPropOperator* op) const {
   auto& parents = op->parents();
   SCHECK(parents.size() == 1);
   auto& parentG = parents[0].op->inputGradient()[parents[0].inputIndex];
@@ -154,15 +162,18 @@ GradientPair SoftmaxOperator::gradientFunc(const BackPropOperator* op) const {
 
   Tensor g{inputs_[0]->get().dims()};
   Matrix m{g};
-  Matrix out{get()};
+  // TODO: fix this
+  Matrix out{const_cast<Tensor&>(get())};
 
-  SCHECK(m.dims() == out.dims());
-  SCHECK(parentM.dims() == m.dims());
+  SCHECK(make_pair(m.rows(), m.cols()) == make_pair(out.rows(), out.cols()));
+  SCHECK(
+      make_pair(parentM.rows(), parentM.cols()) ==
+      make_pair(m.rows(), m.cols()));
 
   for (int i = 0; i < m.rows(); ++i) {
     int label = -1;
     for (int j = 0; j < m.cols(); ++j) {
-      if (parentG(i, j) > 0) {
+      if (parentM(i, j) > 0) {
         label = j;
         break;
       }
@@ -215,7 +226,7 @@ Tensor& LossOperator::compute() {
   return get();
 }
 
-GradientPair LossOperator::gradientFunc(const BackPropOperator* op) const {
+GradientPair LossOperator::gradientFunc(BackPropOperator* op) const {
   Tensor g{inputs_[0]->get().dims(), Tensor::InitScheme::Zero};
   Matrix m{g};
   Matrix in{inputs_[0]->get()};
