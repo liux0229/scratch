@@ -58,7 +58,8 @@ class Operator {
     return []() { return nullptr; };
   }
 
-  virtual GradientPair gradientFunc(BackPropOperator*) const = 0;
+  // TODO: add back the const modifier
+  virtual GradientPair gradientFunc(BackPropOperator*) = 0;
 
   IBackPropOperator backPropOp_ = nullptr;
 };
@@ -123,7 +124,7 @@ class InputOperator : public Operator {
   }
 
  private:
-  GradientPair gradientFunc(BackPropOperator*) const override {
+  GradientPair gradientFunc(BackPropOperator*) override {
     return std::make_pair(Gradient{}, Gradient{});
   }
 };
@@ -145,7 +146,7 @@ class FCLayerOperator : public Operator {
 
  private:
   std::function<Tensor*()> getParameters() override;
-  GradientPair gradientFunc(BackPropOperator*) const override;
+  GradientPair gradientFunc(BackPropOperator*) override;
 
   Tensor w_;
   Tensor b_;
@@ -160,7 +161,7 @@ class ReluOperator : public Operator {
   Tensor& compute() override;
 
  private:
-  GradientPair gradientFunc(BackPropOperator*) const override;
+  GradientPair gradientFunc(BackPropOperator*) override;
 };
 
 class SoftmaxOperator : public Operator {
@@ -172,7 +173,7 @@ class SoftmaxOperator : public Operator {
   Tensor& compute() override;
 
  private:
-  GradientPair gradientFunc(BackPropOperator*) const override;
+  GradientPair gradientFunc(BackPropOperator*) override;
 };
 
 class LossOperator : public Operator {
@@ -184,5 +185,5 @@ class LossOperator : public Operator {
   Tensor& compute() override;
 
  private:
-  GradientPair gradientFunc(BackPropOperator*) const override;
+  GradientPair gradientFunc(BackPropOperator*) override;
 };

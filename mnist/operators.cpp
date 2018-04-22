@@ -82,12 +82,13 @@ std::function<Tensor*()> FCLayerOperator::getParameters() {
   };
 }
 
-GradientPair FCLayerOperator::gradientFunc(BackPropOperator* op) const {
+GradientPair FCLayerOperator::gradientFunc(BackPropOperator* op) {
   // input gradient = parent gradient * W^T
 
   // w'(i, j) = x(i) * h'(j) and average over all examples
   // do we need to fuse averages from the beginning?
   // why does this node need to know there is an average operation?
+  return GradientPair();
 }
 
 ReluOperator::ReluOperator(IOperator input) : Operator(input->dims(), {input}) {
@@ -105,7 +106,7 @@ Tensor& ReluOperator::compute() {
   return get();
 }
 
-GradientPair ReluOperator::gradientFunc(BackPropOperator* op) const {
+GradientPair ReluOperator::gradientFunc(BackPropOperator* op) {
   auto& parents = op->parents();
   // I can make this more generic (the ReLu output is consumed by multiple
   // operators), but let's simplify for now
@@ -154,7 +155,7 @@ Tensor& SoftmaxOperator::compute() {
   return get();
 }
 
-GradientPair SoftmaxOperator::gradientFunc(BackPropOperator* op) const {
+GradientPair SoftmaxOperator::gradientFunc(BackPropOperator* op) {
   auto& parents = op->parents();
   SCHECK(parents.size() == 1);
   auto& parentG = parents[0].op->inputGradient()[parents[0].inputIndex];
@@ -162,8 +163,7 @@ GradientPair SoftmaxOperator::gradientFunc(BackPropOperator* op) const {
 
   Tensor g{inputs_[0]->get().dims()};
   Matrix m{g};
-  // TODO: fix this
-  Matrix out{const_cast<Tensor&>(get())};
+  Matrix out{get()};
 
   SCHECK(make_pair(m.rows(), m.cols()) == make_pair(out.rows(), out.cols()));
   SCHECK(
@@ -226,7 +226,7 @@ Tensor& LossOperator::compute() {
   return get();
 }
 
-GradientPair LossOperator::gradientFunc(BackPropOperator* op) const {
+GradientPair LossOperator::gradientFunc(BackPropOperator* op) {
   Tensor g{inputs_[0]->get().dims(), Tensor::InitScheme::Zero};
   Matrix m{g};
   Matrix in{inputs_[0]->get()};
