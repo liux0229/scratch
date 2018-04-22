@@ -67,7 +67,7 @@ std::ostream& operator<<(std::ostream& out, const std::vector<T>& v) {
 
 void printStackTrace();
 
-#define SCHECK(f)       \
+#define SCHECK(f)      \
   if (!(f)) {          \
     printStackTrace(); \
     assert(f);         \
@@ -87,3 +87,23 @@ void printStackTrace();
 //     auto const& _tmp = (e);               \
 //     _tmp ? _tmp : throw std::exception(); \
 //   })
+
+template <typename T>
+struct reversion_wrapper {
+  T& iterable;
+};
+
+template <typename T>
+auto begin(reversion_wrapper<T> w) {
+  return std::rbegin(w.iterable);
+}
+
+template <typename T>
+auto end(reversion_wrapper<T> w) {
+  return std::rend(w.iterable);
+}
+
+template <typename T>
+reversion_wrapper<T> reverse(T&& iterable) {
+  return {iterable};
+}

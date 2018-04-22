@@ -10,6 +10,7 @@ cpp_library(
     ],
     auto_headers = AutoHeaders.RECURSIVE_GLOB,  # https://fburl.com/424819295
     deps = [
+        "//folly:format",
         "//folly:optional",
     ],
 )

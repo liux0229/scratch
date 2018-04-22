@@ -36,6 +36,8 @@ class Tensor {
     return std::tie(dims_, data_) == std::tie(other.dims_, other.data_);
   }
 
+  bool equals(const Tensor& other, double eps) const;
+
   friend void print(std::ostream& out, const Tensor& tensor, std::string tab);
 
  private:
@@ -83,6 +85,7 @@ class Vector {
   Tensor* tensor_;
 };
 
+class TransposedMatrix;
 // A view on top of the general tensor
 // Consider disabling copy
 class Matrix {
@@ -101,11 +104,63 @@ class Matrix {
     return tensor_->data_[i * cols() + j];
   }
 
+  Tensor rowSum() const;
+
+  TransposedMatrix transpose();
+
  private:
   Tensor* tensor_;
 };
 
-Tensor operator*(const Matrix& a, const Matrix& b);
+class TransposedMatrix {
+ public:
+  TransposedMatrix(Matrix* m) : m_(m) {}
+  Dim rows() const {
+    return m_->cols();
+  }
+  Dim cols() const {
+    return m_->rows();
+  }
+  Float operator()(Dim i, Dim j) const {
+    return (*m_)(j, i);
+  }
+  Float& operator()(Dim i, Dim j) {
+    return (*m_)(j, i);
+  }
+
+ private:
+  Matrix* m_;
+};
+
+template <typename T1, typename T2>
+constexpr bool is_same_v = std::is_same<T1, T2>::value;
+#define REQUIRES(T, T1, T2)                                                  \
+  typename = typename std::enable_if < is_same_v<T, T1> || is_same_v<T, T2>, \
+  void > ::type
+
+template <
+    typename MX1,
+    typename MX2,
+    REQUIRES(MX1, Matrix, TransposedMatrix),
+    REQUIRES(MX2, Matrix, TransposedMatrix)>
+Tensor operator*(const MX1& a, const MX2& b) {
+  SCHECK(a.cols() == b.rows());
+
+  Dims dims{a.rows(), b.cols()};
+  Tensor ret{dims};
+  Matrix m{ret};
+
+  for (int i = 0; i < a.rows(); i++) {
+    for (int j = 0; j < b.cols(); j++) {
+      for (int k = 0; k < a.cols(); k++) {
+        m(i, j) += a(i, k) * b(k, j);
+      }
+    }
+  }
+
+  return ret;
+}
+
 Tensor operator+(const Matrix& a, const Matrix& b);
 Tensor operator+(const Matrix& a, const Vector& b);
 

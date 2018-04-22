@@ -31,6 +31,9 @@ class Operator {
   const OperatorList& getInputs() const {
     return inputs_;
   }
+  OperatorList& getInputs() {
+    return inputs_;
+  }
 
   // Use the brute force way to compute gradient for debugging purposes
   Gradient computeGradientDebug(const std::function<double()>& loss);
@@ -46,13 +49,6 @@ class Operator {
   OperatorList inputs_;
   folly::Optional<Tensor> output_;
 
-  // TODO
-  // 1. getBackPropOperator() stores a cache
-  // 2. create back-prop operators when creating the backward graph
-  // 3. requery the backprop operator and create input edges (add edges later)
-  // 4. Each input has its own gradient
-  // 5. Back Prop operator that is independent. parent->get() should take an
-  // index
  private:
   virtual std::function<Tensor*()> getParameters() {
     return []() { return nullptr; };
@@ -76,6 +72,9 @@ class BackPropOperator {
   // TODO: add back the const modifier (which may not be very important)
   // we may want to fix the const view problem otherwise it permeates everwhere
   // But also note it may also make the Matrix operators hard to write
+  // Idea: use T& construct and use perfect forwarding; let compiler deduce
+  // const
+
   using RunBackProp = std::function<GradientPair(BackPropOperator*)>;
   BackPropOperator(std::string name, const RunBackProp& run)
       : name_(name), run_(run) {}
@@ -109,6 +108,7 @@ class BackPropOperator {
   Gradient inputGradient_;
   ParentList parents_;
 };
+using BackPropOperatorList = std::vector<IBackPropOperator>;
 
 class InputOperator : public Operator {
  public:

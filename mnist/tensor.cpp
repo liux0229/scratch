@@ -1,5 +1,6 @@
 #include "tensor.h"
 
+#include <cmath>
 #include <cstring>
 #include <random>
 #include "common.h"
@@ -105,6 +106,18 @@ Tensor Tensor::operator[](Dim x) const {
   return ret;
 }
 
+bool Tensor::equals(const Tensor& other, double eps) const {
+  if (dims() != other.dims()) {
+    return false;
+  }
+  for (int i = 0; i < static_cast<int>(data().size()); ++i) {
+    if (abs(data()[i] - other.data()[i]) > eps) {
+      return false;
+    }
+  }
+  return true;
+}
+
 void print(ostream& out, const Tensor& tensor, string tab) {
   out << tab << "{" << endl;
 
@@ -137,22 +150,8 @@ Matrix::Matrix(Tensor& tensor) : tensor_(&tensor) {
   SCHECK(tensor_->dims_.size() == 2);
 }
 
-Tensor operator*(const Matrix& a, const Matrix& b) {
-  SCHECK(a.cols() == b.rows());
-
-  Dims dims{a.rows(), b.cols()};
-  Tensor ret{dims};
-  Matrix m{ret};
-
-  for (int i = 0; i < a.rows(); i++) {
-    for (int j = 0; j < b.cols(); j++) {
-      for (int k = 0; k < a.cols(); k++) {
-        m(i, j) += a(i, k) * b(k, j);
-      }
-    }
-  }
-
-  return ret;
+TransposedMatrix Matrix::transpose() {
+  return TransposedMatrix{this};
 }
 
 Tensor operator+(const Matrix& a, const Matrix& b) {
@@ -185,6 +184,17 @@ Tensor operator+(const Matrix& a, const Vector& b) {
     }
   }
 
+  return ret;
+}
+
+Tensor Matrix::rowSum() const {
+  Tensor ret{Dims{cols()}, Tensor::InitScheme::Zero};
+  Vector v{ret};
+  for (int j = 0; j < cols(); ++j) {
+    for (int i = 0; i < rows(); ++i) {
+      v(j) += (*this)(i, j);
+    }
+  }
   return ret;
 }
 

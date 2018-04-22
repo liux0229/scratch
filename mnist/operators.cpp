@@ -84,11 +84,25 @@ std::function<Tensor*()> FCLayerOperator::getParameters() {
 
 GradientPair FCLayerOperator::gradientFunc(BackPropOperator* op) {
   // input gradient = parent gradient * W^T
+  auto& parents = op->parents();
+  // Can make this more generic by iterating over the parents
+  SCHECK(parents.size() == 1);
+  Matrix parentGradient{parents[0].op->inputGradient()[parents[0].inputIndex]};
+  auto inputGradient = parentGradient * Matrix{w_}.transpose();
 
   // w'(i, j) = x(i) * h'(j) and average over all examples
-  // do we need to fuse averages from the beginning?
-  // why does this node need to know there is an average operation?
-  return GradientPair();
+  // w' = X^T * h
+  Matrix x{inputs_[0]->get()};
+  // This is also the reason why we cannot fuse over all the per example
+  // gradients for the parent, because we need a per example fuse with the input
+  auto wGradient = x.transpose() * parentGradient;
+
+  // b' = h' sum over rows
+  auto bGradient = parentGradient.rowSum();
+
+  return make_pair(
+      Gradient{move(inputGradient)},
+      Gradient{move(wGradient), move(bGradient)});
 }
 
 ReluOperator::ReluOperator(IOperator input) : Operator(input->dims(), {input}) {
@@ -112,8 +126,6 @@ GradientPair ReluOperator::gradientFunc(BackPropOperator* op) {
   // operators), but let's simplify for now
   SCHECK(parents.size() == 1);
 
-  Gradient inputGradient;
-
   auto g = parents[0].op->inputGradient()[parents[0].inputIndex];
   auto& output = get();
   SCHECK(g.dims() == output.dims());
@@ -123,9 +135,7 @@ GradientPair ReluOperator::gradientFunc(BackPropOperator* op) {
     }
   }
 
-  inputGradient.push_back(move(g));
-
-  return make_pair(inputGradient, Gradient{});
+  return make_pair(Gradient{move(g)}, Gradient{});
 }
 
 SoftmaxOperator::SoftmaxOperator(IOperator input)
@@ -173,7 +183,8 @@ GradientPair SoftmaxOperator::gradientFunc(BackPropOperator* op) {
   for (int i = 0; i < m.rows(); ++i) {
     int label = -1;
     for (int j = 0; j < m.cols(); ++j) {
-      if (parentM(i, j) > 0) {
+      if (parentM(i, j) != 0) {
+        // SCHECK(label == -1);
         label = j;
         break;
       }
@@ -182,10 +193,11 @@ GradientPair SoftmaxOperator::gradientFunc(BackPropOperator* op) {
 
     for (int j = 0; j < m.cols(); ++j) {
       if (j == label) {
-        m(i, j) = out(i, j) - out(i, j) * out(i, j);
+        m(i, j) = out(i, j) * out(i, j) - out(i, j);
       } else {
-        m(i, j) = -out(i, label) * out(i, j);
+        m(i, j) = out(i, label) * out(i, j);
       }
+      m(i, j) *= parentM(i, label);
     }
   }
 
@@ -233,7 +245,12 @@ GradientPair LossOperator::gradientFunc(BackPropOperator* op) {
   Vector label{inputs_[1]->get()};
   for (int i = 0; i < m.rows(); ++i) {
     SCHECK(label(i) < m.cols());
-    m(i, label(i)) = 1 / in(i, label(i));
+    // Note here we are already applying the 1/m scaling operation needed to
+    // compute the averaged loss (same pattern as the forward pass)
+
+    // TODO: numerical stability
+
+    m(i, label(i)) = -1 / in(i, label(i)) / m.rows();
   }
 
   return make_pair(Gradient{move(g)}, Gradient{});

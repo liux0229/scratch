@@ -1,5 +1,7 @@
 #include <iostream>
 
+#include <folly/Format.h>
+
 #include "graph.h"
 #include "trainer.h"
 
@@ -56,11 +58,12 @@ class SGDTrainer {
     label_ = make_shared<InputOperator>(Dims{});
     lossOp_ = make_shared<LossOperator>(output_, label_);
     forwardPass_ = GraphBuilder::topologicalSort(input_, lossOp_);
+    backwardPass_ = buildBackwardPass(forwardPass_);
 
     int N = examples_.size(); // 60000
-    const int K = 10;
+    const int K = 200;
     int start = 0;
-    int Iter = 10000;
+    int Iter = 100000;
 
     // ExampleList batch;
     // for (int i = 0; i < K; ++i) {
@@ -69,11 +72,11 @@ class SGDTrainer {
     // input_->load(batch, false);
     // label_->load(batch, true);
 
-    double alpha = 0.2;
+    double alpha = 0.15;
     for (int i = 0; i < Iter; ++i) {
       // cout << "i=" << i << " loss: " << computeLoss() << endl;
 
-      if (i % 10 == 0) {
+      if (i % 1000 == 0) {
         input_->load(examples_, false);
         label_->load(examples_, true);
         cout << "i=" << i << " loss: " << computeLoss() << endl;
@@ -91,7 +94,9 @@ class SGDTrainer {
       input_->load(batch, false);
       label_->load(batch, true);
 
-      auto g = computeGradientDebug(batch);
+      auto g = computeGradient(batch);
+      // verifyGradient(batch, g);
+
       for (size_t k = 0; k < forwardPass_.size(); ++k) {
         forwardPass_[k]->applyGradient(g[k] * -alpha);
       }
@@ -101,11 +106,78 @@ class SGDTrainer {
   }
 
  private:
+  BackPropOperatorList buildBackwardPass(
+      const OperatorList& forwardPass) const {
+    BackPropOperatorList ret;
+
+    for (auto op : reverse(forwardPass)) {
+      ret.push_back(op->getBackPropOperator());
+    }
+    for (auto op : forwardPass) {
+      // TODO: verify this when we have graphs with more than one input
+      int index = 0;
+      for (auto in : op->getInputs()) {
+        in->getBackPropOperator()->addParent(op->getBackPropOperator(), index);
+        ++index;
+      }
+    }
+
+    // for (auto op : ret) {
+    //   cout << op->name() << " parents: ";
+    //   for (auto p : op->parents()) {
+    //     cout << folly::format("{}:{} ", p.op->name(), p.inputIndex);
+    //   }
+    //   cout << endl;
+    // }
+
+    return ret;
+  }
+
   double computeLoss() const {
     for (auto op : forwardPass_) {
       op->compute();
     }
     return Vector{lossOp_->get()}(0);
+  }
+
+  // return gradient from each operator following the forward order
+  GradientList computeGradient(const ExampleList& batch) const {
+    SCHECK(forwardPass_.size() == backwardPass_.size());
+
+    GradientList gradients(forwardPass_.size());
+
+    // forward pass
+    for (auto op : forwardPass_) {
+      op->compute();
+    }
+
+    // backward pass
+    int index = backwardPass_.size() - 1;
+    for (auto op : backwardPass_) {
+      op->runBackProp();
+      gradients[index--] = op->parameterGradient();
+    }
+
+    return gradients;
+  }
+
+  void verifyGradient(const ExampleList& batch, const GradientList& g) const {
+    const double eps = 1e-2;
+    auto gDebug = computeGradientDebug(batch);
+    SCHECK(g.size() == gDebug.size());
+
+    for (int i = 0; i < static_cast<int>(g.size()); ++i) {
+      SCHECK(g[i].size() == gDebug[i].size());
+      for (int j = 0; j < static_cast<int>(g[i].size()); ++j) {
+        if (!g[i][j].equals(gDebug[i][j], eps)) {
+          cout << folly::format(
+              "{} #{} gradient not equal:\n", forwardPass_[i]->name(), j);
+          // cout << "gradient: " << g[i][j] << endl;
+          // cout << "debug gradient: " << gDebug[i][j] << endl;
+          // SCHECK(false);
+        }
+      }
+    }
   }
 
   GradientList computeGradientDebug(const ExampleList& batch) const {
@@ -133,6 +205,7 @@ class SGDTrainer {
   IOperator lossOp_;
   ExampleList examples_;
   OperatorList forwardPass_;
+  BackPropOperatorList backwardPass_;
 };
 
 IModel Trainer::train(ExampleList examples, Algorithm algorithm) {
@@ -141,7 +214,7 @@ IModel Trainer::train(ExampleList examples, Algorithm algorithm) {
       return make_shared<ConstModel>();
     case Algorithm::MLP:
       auto ops =
-          GraphBuilder::buildMLP(Tensor{examples, false}.dims()[1], 10, {10});
+          GraphBuilder::buildMLP(Tensor{examples, false}.dims()[1], 10, {30});
       ops = SGDTrainer(ops.first, ops.second, examples).train();
       return make_shared<ForwardPassModel>(ops.first, ops.second);
   }
