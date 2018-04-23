@@ -5,6 +5,7 @@
 #include <array>
 #include <cassert>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -106,4 +107,28 @@ auto end(reversion_wrapper<T> w) {
 template <typename T>
 reversion_wrapper<T> reverse(T&& iterable) {
   return {iterable};
+}
+
+template <typename T>
+std::vector<T> operator+(const std::vector<T>& a, const std::vector<T>& b) {
+  std::vector<T> ret;
+  ret.reserve(a.size() + b.size());
+  for (auto& x : a) {
+    ret.push_back(x);
+  }
+  for (auto& x : b) {
+    ret.push_back(x);
+  }
+  return ret;
+}
+
+template <typename T>
+std::vector<T> operator-(const std::vector<T>& a, const std::vector<T>& b) {
+  std::vector<T> ret;
+  for (auto& x : a) {
+    if (find(b.begin(), b.end(), x) == b.end()) {
+      ret.push_back(x);
+    }
+  }
+  return ret;
 }

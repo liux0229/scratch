@@ -20,11 +20,11 @@ class Operator {
     return dims_;
   }
   virtual Tensor& compute() = 0;
-  const Tensor& get() const {
+  virtual const Tensor& get() const {
     return output_.value();
   }
   // fix the const protection
-  Tensor& get() {
+  virtual Tensor& get() {
     return output_.value();
   }
 
@@ -175,6 +175,7 @@ class SoftmaxOperator : public Operator {
  private:
   GradientPair gradientFunc(BackPropOperator*) override;
 };
+using ISoftmaxOperator = std::shared_ptr<SoftmaxOperator>;
 
 class LossOperator : public Operator {
  public:
@@ -186,4 +187,27 @@ class LossOperator : public Operator {
 
  private:
   GradientPair gradientFunc(BackPropOperator*) override;
+};
+using ILossOperator = std::shared_ptr<LossOperator>;
+
+// Fuse softmax + loss to avoid numeric instability because of the division
+class SoftmaxLossOperator : public Operator {
+ public:
+  SoftmaxLossOperator(ISoftmaxOperator softmaxOp, ILossOperator lossOp);
+  std::string name() const override {
+    return "softmax_loss";
+  }
+  Tensor& compute() override;
+  const Tensor& get() const override {
+    return lossOp_->get();
+  }
+  Tensor& get() override {
+    return lossOp_->get();
+  }
+
+ private:
+  GradientPair gradientFunc(BackPropOperator*) override;
+
+  ISoftmaxOperator softmaxOp_;
+  ILossOperator lossOp_;
 };

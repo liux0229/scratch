@@ -52,16 +52,28 @@ class ForwardPassModel : public Model {
 
 class SGDTrainer {
  public:
-  SGDTrainer(IInputOperator input, IOperator output, ExampleList examples)
-      : input_(input), output_(output), examples_(examples) {}
+  SGDTrainer(
+      IInputOperator input,
+      IOperator output,
+      ExampleList examples,
+      TestEvaluator evaluator)
+      : input_(input),
+        output_(output),
+        examples_(examples),
+        evaluator_(evaluator) {}
   pair<IInputOperator, IOperator> train() {
     label_ = make_shared<InputOperator>(Dims{});
-    lossOp_ = make_shared<LossOperator>(output_, label_);
+    auto lossOp = make_shared<LossOperator>(output_, label_);
+
+    // fuse softmax and loss
+    lossOp_ = make_shared<SoftmaxLossOperator>(
+        dynamic_pointer_cast<SoftmaxOperator>(output_), lossOp);
+
     forwardPass_ = GraphBuilder::topologicalSort(input_, lossOp_);
     backwardPass_ = buildBackwardPass(forwardPass_);
 
     int N = examples_.size(); // 60000
-    const int K = 200;
+    const int K = 100;
     int start = 0;
     int Iter = 100000;
 
@@ -80,6 +92,12 @@ class SGDTrainer {
         input_->load(examples_, false);
         label_->load(examples_, true);
         cout << "i=" << i << " loss: " << computeLoss() << endl;
+      }
+      if (evaluator_ && i % 5000 == 0) {
+        auto model = make_shared<ForwardPassModel>(input_, output_);
+        cout << folly::format(
+                    "i={} test error rate={}%", i, evaluator_(model) * 100)
+             << endl;
       }
 
       ExampleList batch;
@@ -200,22 +218,28 @@ class SGDTrainer {
   }
 
   IInputOperator input_;
-  IInputOperator label_;
   IOperator output_;
-  IOperator lossOp_;
   ExampleList examples_;
+  // should never be used to influence trainer's behavior
+  TestEvaluator evaluator_;
+
+  IInputOperator label_;
+  IOperator lossOp_;
   OperatorList forwardPass_;
   BackPropOperatorList backwardPass_;
 };
 
-IModel Trainer::train(ExampleList examples, Algorithm algorithm) {
+IModel Trainer::train(
+    ExampleList examples,
+    Algorithm algorithm,
+    TestEvaluator evaluator) {
   switch (algorithm) {
     case Algorithm::CONST:
       return make_shared<ConstModel>();
     case Algorithm::MLP:
       auto ops =
-          GraphBuilder::buildMLP(Tensor{examples, false}.dims()[1], 10, {30});
-      ops = SGDTrainer(ops.first, ops.second, examples).train();
+          GraphBuilder::buildMLP(Tensor{examples, false}.dims()[1], 10, {200});
+      ops = SGDTrainer(ops.first, ops.second, examples, evaluator).train();
       return make_shared<ForwardPassModel>(ops.first, ops.second);
   }
   return nullptr;

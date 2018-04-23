@@ -1,5 +1,6 @@
-#include <iostream>
+#include <fenv.h>
 #include <folly/Format.h>
+#include <iostream>
 
 #include "common.h"
 #include "evaluator.h"
@@ -8,18 +9,30 @@
 using namespace std;
 using namespace folly;
 
+void setup() {
+  // feenableexcept(FE_INVALID | FE_OVERFLOW);
+}
+
 int main() {
-  ExampleReader trainReader{"/data/users/rockyliu/fbsource/fbcode/experimental/rockyliu/mnist/data/train-images-idx3-ubyte",
-                            "/data/users/rockyliu/fbsource/fbcode/experimental/rockyliu/mnist/data/train-labels-idx1-ubyte"};
+  setup();
 
+  ExampleReader trainReader{
+      "/data/users/rockyliu/fbsource/fbcode/experimental/rockyliu/mnist/data/train-images-idx3-ubyte",
+      "/data/users/rockyliu/fbsource/fbcode/experimental/rockyliu/mnist/data/train-labels-idx1-ubyte"};
   auto trainSample = trainReader.readAll();
-  // auto model = Trainer::train(trainReader.readAll(), Algorithm::CONST);
-  auto model = Trainer::train(trainSample, Algorithm::MLP);
 
-  ExampleReader testReader{"/data/users/rockyliu/fbsource/fbcode/experimental/rockyliu/mnist/data/t10k-images-idx3-ubyte",
-                           "/data/users/rockyliu/fbsource/fbcode/experimental/rockyliu/mnist/data/t10k-labels-idx1-ubyte"};
+  ExampleReader testReader{
+      "/data/users/rockyliu/fbsource/fbcode/experimental/rockyliu/mnist/data/t10k-images-idx3-ubyte",
+      "/data/users/rockyliu/fbsource/fbcode/experimental/rockyliu/mnist/data/t10k-labels-idx1-ubyte"};
+  auto testSample = testReader.readAll();
+
   Evaluator evaluator;
-  double error = evaluator.evaluate(model, testReader.readAll());
+  auto model = Trainer::train(
+      trainSample, Algorithm::MLP, [&evaluator, &testSample](IModel model) {
+        return evaluator.evaluate(model, testSample);
+      });
+
+  double error = evaluator.evaluate(model, testSample);
   // double error = evaluator.evaluate(model, trainSample);
 
   cout << format("Error rate is {}%", 100 * error) << endl;

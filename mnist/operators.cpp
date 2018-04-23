@@ -1,5 +1,6 @@
 #include "operators.h"
 
+#include <folly/Format.h>
 #include <cmath>
 
 using namespace std;
@@ -91,7 +92,7 @@ GradientPair FCLayerOperator::gradientFunc(BackPropOperator* op) {
   auto inputGradient = parentGradient * Matrix{w_}.transpose();
 
   // w'(i, j) = x(i) * h'(j) and average over all examples
-  // w' = X^T * h
+  // w' = X^T * h'
   Matrix x{inputs_[0]->get()};
   // This is also the reason why we cannot fuse over all the per example
   // gradients for the parent, because we need a per example fuse with the input
@@ -155,11 +156,16 @@ Tensor& SoftmaxOperator::compute() {
     vector<Float> e(in.cols());
     Float sum = 0;
     for (size_t j = 0; j < e.size(); j++) {
-      e[j] = exp(-in(i, j));
+      e[j] = min(exp(-in(i, j)), 1e30f);
       sum += e[j];
     }
     for (size_t j = 0; j < e.size(); j++) {
       m(i, j) = e[j] / sum;
+      // if (m(i, j) < 1e-40) {
+      //   cout << folly::format(
+      //               "i={} j={} in={} e={} sum={}", i, j, in(i, j), e[j], sum)
+      //        << endl;
+      // }
     }
   }
   return get();
@@ -197,7 +203,19 @@ GradientPair SoftmaxOperator::gradientFunc(BackPropOperator* op) {
       } else {
         m(i, j) = out(i, label) * out(i, j);
       }
+      // double tmp = m(i, j);
       m(i, j) *= parentM(i, label);
+      // if (isnan(m(i, j))) {
+      //   cout << folly::format(
+      //               "m={} parent={} i={} j={} label={}",
+      //               tmp,
+      //               parentM(i, label),
+      //               i,
+      //               j,
+      //               label)
+      //        << endl;
+      //   exit(0);
+      // }
     }
   }
 
@@ -213,27 +231,24 @@ LossOperator::LossOperator(IOperator input, IOperator label)
 Tensor& LossOperator::compute() {
   SCHECK(inputs_[0]->get().dims()[0] == inputs_[1]->get().dims()[0]);
 
-  Tensor loss{Dims{inputs_[0]->get().dims()[0]}};
-  Vector v{loss};
-
   Matrix in{inputs_[0]->get()};
   Vector label{inputs_[1]->get()};
 
   SCHECK(in.rows() == label.n());
 
-  for (int i = 0; i < v.n(); i++) {
+  Float s = 0;
+  for (int i = 0; i < label.n(); i++) {
     auto x = label(i);
     SCHECK(x < in.cols());
-    v(i) = -log(in(i, x));
+
+    Float y = max(in(i, x), 1e-30f);
+
+    s += -log(y) / label.n();
   }
 
-  double s = 0;
-  for (int i = 0; i < v.n(); i++) {
-    s += v(i);
-  }
-  s /= v.n();
-  output_ = Tensor{Dims{1}};
-  Vector{get()}(0) = s;
+  Tensor ret{Dims{1}};
+  Vector{ret}(0) = s;
+  output_ = ret;
 
   return get();
 }
@@ -248,9 +263,55 @@ GradientPair LossOperator::gradientFunc(BackPropOperator* op) {
     // Note here we are already applying the 1/m scaling operation needed to
     // compute the averaged loss (same pattern as the forward pass)
 
-    // TODO: numerical stability
-
     m(i, label(i)) = -1 / in(i, label(i)) / m.rows();
+    // if (isinf(m(i, label(i)))) {
+    //   cout << folly::format("in={};i={};label={}", in(i, label(i)), i,
+    //   label(i))
+    //        << endl;
+    // }
+  }
+
+  return make_pair(Gradient{move(g)}, Gradient{});
+}
+
+SoftmaxLossOperator::SoftmaxLossOperator(
+    ISoftmaxOperator softmaxOp,
+    ILossOperator lossOp)
+    : Operator(
+          lossOp->dims(),
+          softmaxOp->getInputs() + lossOp->getInputs() -
+              OperatorList{softmaxOp}),
+      softmaxOp_(softmaxOp),
+      lossOp_(lossOp) {}
+
+Tensor& SoftmaxLossOperator::compute() {
+  softmaxOp_->compute();
+  lossOp_->compute();
+  return get();
+}
+
+GradientPair SoftmaxLossOperator::gradientFunc(BackPropOperator* op) {
+  SCHECK(op->parents().empty());
+
+  Tensor g{softmaxOp_->getInputs()[0]->get().dims()};
+  Matrix m{g};
+  Matrix softmax{softmaxOp_->get()};
+  Vector label{lossOp_->getInputs()[1]->get()};
+
+  SCHECK(
+      make_pair(m.rows(), m.cols()) ==
+      make_pair(softmax.rows(), softmax.cols()));
+
+  for (int i = 0; i < m.rows(); ++i) {
+    SCHECK(label(i) < m.cols());
+
+    for (int j = 0; j < m.cols(); ++j) {
+      if (j == label(i)) {
+        m(i, j) = (1.0 - softmax(i, j)) / m.rows();
+      } else {
+        m(i, j) = -softmax(i, j) / m.rows();
+      }
+    }
   }
 
   return make_pair(Gradient{move(g)}, Gradient{});
