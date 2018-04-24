@@ -7,6 +7,29 @@
 
 using namespace std;
 
+ostream& operator<<(ostream& out, const ModelArchitecture& modelArch) {
+  out << "model arch: "
+      << "FC " << modelArch.fcLayer.hiddenLayerDims;
+  return out;
+}
+
+ostream& operator<<(
+    ostream& out,
+    const LearingRateStrategy& learningRateStrategy) {
+  out << "learning rate = " << learningRateStrategy.alpha;
+  return out;
+}
+
+ostream& operator<<(ostream& out, const TrainingConfig& trainingConfig) {
+  out << trainingConfig.modelArch << " " << trainingConfig.learningRateStrategy
+      << " "
+      << folly::format(
+             "iterations={} batch={}",
+             trainingConfig.iterations,
+             trainingConfig.batchSize);
+  return out;
+}
+
 class ConstModel : public Model {
   Prediction predict(const Example& e) const override {
     Prediction p;
@@ -76,18 +99,10 @@ class SGDTrainer {
 
     int N = examples_.size(); // 60000
     const int K = trainingConfig_.batchSize;
+    const double alpha = trainingConfig_.learningRateStrategy.alpha;
     int start = 0;
-    int Iter = trainingConfig_.iterations;
 
-    // ExampleList batch;
-    // for (int i = 0; i < K; ++i) {
-    //   batch.push_back(examples_[i]);
-    // }
-    // input_->load(batch, false);
-    // label_->load(batch, true);
-
-    double alpha = 0.15;
-    for (int i = 0; i < Iter; ++i) {
+    for (int i = 0; i < trainingConfig_.iterations; ++i) {
       // cout << "i=" << i << " loss: " << computeLoss() << endl;
 
       if (i % 1000 == 0) {
@@ -243,10 +258,13 @@ IModel Trainer::train(
       auto ops = GraphBuilder::buildMLP(
           Tensor{examples, false}.dims()[1],
           10,
-          trainingConfig.modelArch.hiddenLayerDims);
+          trainingConfig.modelArch.fcLayer.hiddenLayerDims);
       ops =
           SGDTrainer(ops.first, ops.second, examples, trainingConfig, evaluator)
               .train();
+
+      cout << trainingConfig << endl;
+
       return make_shared<ForwardPassModel>(ops.first, ops.second);
   }
   return nullptr;

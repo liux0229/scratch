@@ -2,8 +2,12 @@
 
 #include "common.h"
 
-struct ModelArchitecture {
+struct FullyConnectedLayer {
   Dims hiddenLayerDims;
+};
+
+struct ModelArchitecture {
+  FullyConnectedLayer fcLayer;
 };
 
 struct LearingRateStrategy {
@@ -23,6 +27,16 @@ struct TrainingConfig {
   int iterations;
   int batchSize;
 };
+
+std::ostream& operator<<(std::ostream& out, const ModelArchitecture& modelArch);
+
+std::ostream& operator<<(
+    std::ostream& out,
+    const LearingRateStrategy& learningRateStrategy);
+
+std::ostream& operator<<(
+    std::ostream& out,
+    const TrainingConfig& trainingConfig);
 
 // Only used for debugging purposes, should never be used to influence trainer's
 // behavior

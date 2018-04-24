@@ -10,7 +10,7 @@ using namespace std;
 using namespace folly;
 
 void setup() {
-  // feenableexcept(FE_INVALID | FE_OVERFLOW);
+  feenableexcept(FE_INVALID | FE_OVERFLOW);
 }
 
 int main() {
@@ -28,7 +28,7 @@ int main() {
 
   TrainingConfig trainingConfig{
       TrainingConfig::Algorithm::MLP,
-      ModelArchitecture{Dims{200, 100}},
+      ModelArchitecture{Dims{500}},
       LearingRateStrategy{LearingRateStrategy::Strategy::CONST, 0.15},
       100000, // iterations
       100, // batch
