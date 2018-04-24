@@ -2,9 +2,26 @@
 
 #include "common.h"
 
-enum class Algorithm {
-  CONST,
-  MLP,
+struct ModelArchitecture {
+  Dims hiddenLayerDims;
+};
+
+struct LearingRateStrategy {
+  enum class Strategy {
+    CONST,
+  } strategy;
+  double alpha;
+};
+
+struct TrainingConfig {
+  enum class Algorithm {
+    CONST,
+    MLP,
+  } algorithm;
+  ModelArchitecture modelArch;
+  LearingRateStrategy learningRateStrategy;
+  int iterations;
+  int batchSize;
 };
 
 // Only used for debugging purposes, should never be used to influence trainer's
@@ -15,6 +32,6 @@ class Trainer {
  public:
   static IModel train(
       ExampleList examples,
-      Algorithm algorithm,
+      TrainingConfig trainingConfig,
       TestEvaluator evaluator = nullptr);
 };

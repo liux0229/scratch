@@ -26,9 +26,17 @@ int main() {
       "/data/users/rockyliu/fbsource/fbcode/experimental/rockyliu/mnist/data/t10k-labels-idx1-ubyte"};
   auto testSample = testReader.readAll();
 
+  TrainingConfig trainingConfig{
+      TrainingConfig::Algorithm::MLP,
+      ModelArchitecture{Dims{200, 100}},
+      LearingRateStrategy{LearingRateStrategy::Strategy::CONST, 0.15},
+      100000, // iterations
+      100, // batch
+  };
+
   Evaluator evaluator;
   auto model = Trainer::train(
-      trainSample, Algorithm::MLP, [&evaluator, &testSample](IModel model) {
+      trainSample, trainingConfig, [&evaluator, &testSample](IModel model) {
         return evaluator.evaluate(model, testSample);
       });
 

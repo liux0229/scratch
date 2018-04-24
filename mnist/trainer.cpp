@@ -56,10 +56,12 @@ class SGDTrainer {
       IInputOperator input,
       IOperator output,
       ExampleList examples,
+      TrainingConfig trainingConfig,
       TestEvaluator evaluator)
       : input_(input),
         output_(output),
         examples_(examples),
+        trainingConfig_(trainingConfig),
         evaluator_(evaluator) {}
   pair<IInputOperator, IOperator> train() {
     label_ = make_shared<InputOperator>(Dims{});
@@ -73,9 +75,9 @@ class SGDTrainer {
     backwardPass_ = buildBackwardPass(forwardPass_);
 
     int N = examples_.size(); // 60000
-    const int K = 100;
+    const int K = trainingConfig_.batchSize;
     int start = 0;
-    int Iter = 100000;
+    int Iter = trainingConfig_.iterations;
 
     // ExampleList batch;
     // for (int i = 0; i < K; ++i) {
@@ -220,6 +222,7 @@ class SGDTrainer {
   IInputOperator input_;
   IOperator output_;
   ExampleList examples_;
+  TrainingConfig trainingConfig_;
   // should never be used to influence trainer's behavior
   TestEvaluator evaluator_;
 
@@ -231,15 +234,19 @@ class SGDTrainer {
 
 IModel Trainer::train(
     ExampleList examples,
-    Algorithm algorithm,
+    TrainingConfig trainingConfig,
     TestEvaluator evaluator) {
-  switch (algorithm) {
-    case Algorithm::CONST:
+  switch (trainingConfig.algorithm) {
+    case TrainingConfig::Algorithm::CONST:
       return make_shared<ConstModel>();
-    case Algorithm::MLP:
-      auto ops =
-          GraphBuilder::buildMLP(Tensor{examples, false}.dims()[1], 10, {200});
-      ops = SGDTrainer(ops.first, ops.second, examples, evaluator).train();
+    case TrainingConfig::Algorithm::MLP:
+      auto ops = GraphBuilder::buildMLP(
+          Tensor{examples, false}.dims()[1],
+          10,
+          trainingConfig.modelArch.hiddenLayerDims);
+      ops =
+          SGDTrainer(ops.first, ops.second, examples, trainingConfig, evaluator)
+              .train();
       return make_shared<ForwardPassModel>(ops.first, ops.second);
   }
   return nullptr;
