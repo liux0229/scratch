@@ -4,6 +4,8 @@
 
 #include <iostream>
 
+#include <folly/futures/Future.h>
+
 #include "common.h"
 
 using namespace std;
@@ -74,4 +76,27 @@ void printStackTrace() {
   size = backtrace(array, 10);
 
   backtrace_symbols_fd(array, size, STDERR_FILENO);
+}
+
+TaskRunner& TaskRunner::get() {
+  static TaskRunner runner;
+  return runner;
+}
+
+TaskRunner::TaskRunner() {
+  auto queue = std::make_unique<folly::LifoSemMPMCQueue<
+      folly::CPUThreadPoolExecutor::CPUTask,
+      folly::QueueBehaviorIfFull::BLOCK>>(128);
+  executor_ = std::make_unique<folly::CPUThreadPoolExecutor>(32, move(queue));
+}
+
+void TaskRunner::run(const vector<TaskRunner::Task>& tasks) {
+  vector<folly::Future<folly::Unit>> futures;
+  futures.reserve(tasks.size());
+
+  for (auto& t : tasks) {
+    futures.push_back(folly::via(executor_.get(), t));
+  }
+
+  collectAll(futures).wait();
 }

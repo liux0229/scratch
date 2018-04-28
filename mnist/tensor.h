@@ -150,6 +150,32 @@ Tensor operator*(const MX1& a, const MX2& b) {
   Tensor ret{dims};
   Matrix m{ret};
 
+#if 1
+  // Distribute the work across K cores
+
+  const int T = 32;
+
+  // TODO: make this thread local (and the task runner vector)
+  std::vector<TaskRunner::Task> tasks;
+  tasks.reserve(T);
+  for (int t = 0; t < T; t++) {
+    int batch = (a.rows() + T - 1) / T;
+    int start = t * batch;
+    int end = std::min((t + 1) * batch, a.rows());
+    auto compute = [start, end, &a, &b, &m]() {
+      for (int i = start; i < end; i++) {
+        for (int j = 0; j < b.cols(); j++) {
+          for (int k = 0; k < a.cols(); k++) {
+            m(i, j) += a(i, k) * b(k, j);
+          }
+        }
+      }
+    };
+    tasks.push_back(compute);
+  }
+
+  TaskRunner::get().run(tasks);
+#else
   for (int i = 0; i < a.rows(); i++) {
     for (int j = 0; j < b.cols(); j++) {
       for (int k = 0; k < a.cols(); k++) {
@@ -157,6 +183,7 @@ Tensor operator*(const MX1& a, const MX2& b) {
       }
     }
   }
+#endif
 
   return ret;
 }

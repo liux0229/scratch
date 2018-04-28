@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 
+#include <folly/executors/CPUThreadPoolExecutor.h>
+
 const int N_IMAGE = 28;
 const int N_CLASS = 10;
 using Float = float;
@@ -132,3 +134,16 @@ std::vector<T> operator-(const std::vector<T>& a, const std::vector<T>& b) {
   }
   return ret;
 }
+
+class TaskRunner {
+ public:
+  using Task = std::function<void()>;
+
+  static TaskRunner& get();
+  void run(const std::vector<Task>& tasks);
+
+ private:
+  TaskRunner();
+
+  std::unique_ptr<folly::Executor> executor_;
+};
