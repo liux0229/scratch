@@ -86,8 +86,13 @@ TaskRunner& TaskRunner::get() {
 TaskRunner::TaskRunner() {
   auto queue = std::make_unique<folly::LifoSemMPMCQueue<
       folly::CPUThreadPoolExecutor::CPUTask,
-      folly::QueueBehaviorIfFull::BLOCK>>(128);
-  executor_ = std::make_unique<folly::CPUThreadPoolExecutor>(32, move(queue));
+      folly::QueueBehaviorIfFull::BLOCK>>(nThreads() * 10);
+  executor_ =
+      std::make_unique<folly::CPUThreadPoolExecutor>(nThreads(), move(queue));
+}
+
+void TaskRunner::runAsync(const TaskRunner::Task& task) {
+  folly::via(executor_.get(), task);
 }
 
 void TaskRunner::run(const vector<TaskRunner::Task>& tasks) {

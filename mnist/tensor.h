@@ -1,5 +1,8 @@
 #include "common.h"
 
+#include <folly/futures/Promise.h>
+#include <atomic>
+
 struct Example;
 
 class Tensor {
@@ -150,12 +153,12 @@ Tensor operator*(const MX1& a, const MX2& b) {
   Tensor ret{dims};
   Matrix m{ret};
 
-#if 1
+#if 0
   // Distribute the work across K cores
 
-  const int T = 32;
+  const int T = TaskRunner::get().nThreads();
+  SCHECK(T >= 1);
 
-  // TODO: make this thread local (and the task runner vector)
   std::vector<TaskRunner::Task> tasks;
   tasks.reserve(T);
   for (int t = 0; t < T; t++) {
@@ -175,6 +178,42 @@ Tensor operator*(const MX1& a, const MX2& b) {
   }
 
   TaskRunner::get().run(tasks);
+#elif 1
+  const int T = TaskRunner::get().nThreads();
+  SCHECK(T >= 1);
+
+  std::atomic<int> finished{0};
+  folly::Promise<folly::Unit> promise;
+  auto future = promise.getFuture();
+
+  for (int t = 0; t < T; t++) {
+    int batch = (a.rows() + T - 1) / T;
+    int start = t * batch;
+    int end = std::min((t + 1) * batch, a.rows());
+    auto compute =
+        [start, end, t, T, &a, &b, &m, &finished, &promise]() -> void {
+      for (int i = start; i < end; i++) {
+        for (int j = 0; j < b.cols(); j++) {
+          for (int k = 0; k < a.cols(); k++) {
+            m(i, j) += a(i, k) * b(k, j);
+            // auto target = m(i, j) + a(i, k) * b(k, j);
+            // target = std::max(std::min(target, 1e15f), -1e15f);
+            // m(i, j) = target;
+          }
+        }
+      }
+      if (++finished == T) {
+        promise.setValue();
+      }
+    };
+    if (t < T - 1) {
+      TaskRunner::get().runAsync(compute);
+    } else {
+      compute();
+    }
+  }
+
+  future.wait();
 #else
   for (int i = 0; i < a.rows(); i++) {
     for (int j = 0; j < b.cols(); j++) {

@@ -141,9 +141,13 @@ class TaskRunner {
 
   static TaskRunner& get();
   void run(const std::vector<Task>& tasks);
+  void runAsync(const Task& task);
+
+  int nThreads() const { return nThreads_; }
 
  private:
   TaskRunner();
 
+  const int nThreads_ = 32;
   std::unique_ptr<folly::Executor> executor_;
 };

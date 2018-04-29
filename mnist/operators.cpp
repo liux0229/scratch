@@ -156,7 +156,14 @@ Tensor& SoftmaxOperator::compute() {
     vector<Float> e(in.cols());
     Float sum = 0;
     for (size_t j = 0; j < e.size(); j++) {
-      e[j] = min(exp(-in(i, j)), 1e30f);
+      const Float maxi = 1e30f;
+      if (-in(i, j) > log(maxi)) {
+        e[j] = maxi;
+      } else {
+        e[j] = exp(-in(i, j));
+      }
+      // e[j] = min(exp(-in(i, j)), maxi);
+
       sum += e[j];
     }
     for (size_t j = 0; j < e.size(); j++) {
