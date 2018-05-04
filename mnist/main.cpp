@@ -29,7 +29,7 @@ int main() {
   TrainingConfig trainingConfig{
       TrainingConfig::Algorithm::MLP,
       ModelArchitecture{Dims{800}},
-      LearingRateStrategy{LearingRateStrategy::Strategy::CONST, 0.15},
+      LearingRateStrategy{LearingRateStrategy::Strategy::CONST, 0.05},
       100000, // iterations
       128, // batch
   };

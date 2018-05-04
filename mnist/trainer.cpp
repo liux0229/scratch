@@ -251,6 +251,8 @@ IModel Trainer::train(
     ExampleList examples,
     TrainingConfig trainingConfig,
     TestEvaluator evaluator) {
+  cout << trainingConfig << endl;
+
   switch (trainingConfig.algorithm) {
     case TrainingConfig::Algorithm::CONST:
       return make_shared<ConstModel>();
