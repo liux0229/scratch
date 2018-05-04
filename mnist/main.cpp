@@ -29,9 +29,9 @@ int main() {
   TrainingConfig trainingConfig{
       TrainingConfig::Algorithm::MLP,
       ModelArchitecture{Dims{800}},
-      LearingRateStrategy{LearingRateStrategy::Strategy::CONST, 0.05},
+      LearingRateStrategy{LearingRateStrategy::Strategy::CONST, 0.01},
       100000, // iterations
-      128, // batch
+      64, // batch
   };
 
   Evaluator evaluator;
