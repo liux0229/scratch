@@ -1,5 +1,6 @@
 #include <fenv.h>
 #include <folly/Format.h>
+#include <fstream>
 #include <iostream>
 
 #include "common.h"
@@ -15,6 +16,8 @@ void setup() {
 
 int main() {
   setup();
+  ifstream configFile("training.config");
+  auto trainingConfig = TrainingConfig::read(configFile);
 
   ExampleReader trainReader{
       "/data/users/rockyliu/fbsource/fbcode/experimental/rockyliu/mnist/data/train-images-idx3-ubyte",
@@ -25,14 +28,6 @@ int main() {
       "/data/users/rockyliu/fbsource/fbcode/experimental/rockyliu/mnist/data/t10k-images-idx3-ubyte",
       "/data/users/rockyliu/fbsource/fbcode/experimental/rockyliu/mnist/data/t10k-labels-idx1-ubyte"};
   auto testSample = testReader.readAll();
-
-  TrainingConfig trainingConfig{
-      TrainingConfig::Algorithm::MLP,
-      ModelArchitecture{Dims{800}},
-      LearingRateStrategy{LearingRateStrategy::Strategy::CONST, 0.01},
-      100000, // iterations
-      64, // batch
-  };
 
   Evaluator evaluator;
   auto model = Trainer::train(

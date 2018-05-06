@@ -1,6 +1,7 @@
 cpp_library(
     name = "mnist_lib",
     srcs = [
+        "TrainingConfig.cpp",
         "common.cpp",
         "evaluator.cpp",
         "graph.cpp",

@@ -70,10 +70,21 @@ std::ostream& operator<<(std::ostream& out, const std::vector<T>& v) {
 
 void printStackTrace();
 
-#define SCHECK(f)      \
-  if (!(f)) {          \
-    printStackTrace(); \
-    assert(f);         \
+#define SCHECK(f, ...)                                              \
+  if (!(f)) {                                                       \
+    printStackTrace();                                              \
+    std::cout << #f << " failed at " << __FILE__ << ":" << __LINE__ \
+              << std::endl;                                         \
+    std::abort();                                                   \
+  }
+
+#define SCHECK_MSG(f, msg)                                          \
+  if (!(f)) {                                                       \
+    printStackTrace();                                              \
+    std::cout << msg << std::endl;                                  \
+    std::cout << #f << " failed at " << __FILE__ << ":" << __LINE__ \
+              << std::endl;                                         \
+    std::abort();                                                   \
   }
 
 // class Exception : public std::exception {
@@ -143,7 +154,9 @@ class TaskRunner {
   void run(const std::vector<Task>& tasks);
   void runAsync(const Task& task);
 
-  int nThreads() const { return nThreads_; }
+  int nThreads() const {
+    return nThreads_;
+  }
 
  private:
   TaskRunner();

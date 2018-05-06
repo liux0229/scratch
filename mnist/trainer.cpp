@@ -7,29 +7,6 @@
 
 using namespace std;
 
-ostream& operator<<(ostream& out, const ModelArchitecture& modelArch) {
-  out << "model arch: "
-      << "FC " << modelArch.fcLayer.hiddenLayerDims;
-  return out;
-}
-
-ostream& operator<<(
-    ostream& out,
-    const LearingRateStrategy& learningRateStrategy) {
-  out << "learning rate = " << learningRateStrategy.alpha;
-  return out;
-}
-
-ostream& operator<<(ostream& out, const TrainingConfig& trainingConfig) {
-  out << trainingConfig.modelArch << " " << trainingConfig.learningRateStrategy
-      << " "
-      << folly::format(
-             "iterations={} batch={}",
-             trainingConfig.iterations,
-             trainingConfig.batchSize);
-  return out;
-}
-
 class ConstModel : public Model {
   Prediction predict(const Example& e) const override {
     Prediction p;
@@ -253,21 +230,14 @@ IModel Trainer::train(
     TestEvaluator evaluator) {
   cout << trainingConfig << endl;
 
-  switch (trainingConfig.algorithm) {
-    case TrainingConfig::Algorithm::CONST:
-      return make_shared<ConstModel>();
-    case TrainingConfig::Algorithm::MLP:
-      auto ops = GraphBuilder::buildMLP(
-          Tensor{examples, false}.dims()[1],
-          10,
-          trainingConfig.modelArch.fcLayer.hiddenLayerDims);
-      ops =
-          SGDTrainer(ops.first, ops.second, examples, trainingConfig, evaluator)
-              .train();
+  auto ops = GraphBuilder::buildMLP(
+      Tensor{examples, false}.dims()[1],
+      10,
+      trainingConfig.modelArch.fcLayer.hiddenLayerDims);
+  ops = SGDTrainer(ops.first, ops.second, examples, trainingConfig, evaluator)
+            .train();
 
-      cout << trainingConfig << endl;
+  cout << trainingConfig << endl;
 
-      return make_shared<ForwardPassModel>(ops.first, ops.second);
-  }
-  return nullptr;
+  return make_shared<ForwardPassModel>(ops.first, ops.second);
 }
