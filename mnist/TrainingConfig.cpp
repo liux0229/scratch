@@ -14,7 +14,7 @@ ostream& operator<<(ostream& out, const ModelArchitecture& modelArch) {
 
 ostream& operator<<(
     ostream& out,
-    const LearingRateStrategy& learningRateStrategy) {
+    const LearningRateStrategy& learningRateStrategy) {
   out << "learning rate = " << learningRateStrategy.alpha;
   return out;
 }
@@ -45,6 +45,14 @@ T expect(istream& in) {
   return x;
 }
 
+string readString(istream& in) {
+  string token;
+  in >> token;
+  SCHECK(
+      token.size() >= 2 && token[0] == '"' && token[token.size() - 1] == '"');
+  return token.substr(1, token.size() - 2);
+}
+
 template <typename T>
 T parse(string s) {
   istringstream in(s);
@@ -66,7 +74,9 @@ TrainingConfig TrainingConfig::read(istream& in) {
 
     expectToken(in, "=");
 
-    if (token == "modelArch") {
+    if (token == "trainingData") {
+      config.trainingData = TrainingDataConfig::read(in);
+    } else if (token == "modelArch") {
       config.modelArch = ModelArchitecture::read(in);
     } else if (token == "learningRateStrategy") {
       config.learningRateStrategy = LearningRateStrategy::read(in);
@@ -77,10 +87,35 @@ TrainingConfig TrainingConfig::read(istream& in) {
     } else {
       SCHECK_MSG(false, format("Unexpected token: {}", token));
     }
-
-    expectToken(in, ",");
   }
   return config;
+}
+
+TrainingDataConfig TrainingDataConfig::read(istream& in) {
+  TrainingDataConfig ret;
+
+  expectToken(in, "{");
+  while (true) {
+    string token;
+    in >> token;
+    if (token == "}") {
+      break;
+    }
+
+    expectToken(in, "=");
+
+    if (token == "trainInput") {
+      ret.trainInput = readString(in);
+    } else if (token == "trainLabel") {
+      ret.trainLabel = readString(in);
+    } else if (token == "testInput") {
+      ret.testInput = readString(in);
+    } else if (token == "testLabel") {
+      ret.testLabel = readString(in);
+    }
+  }
+
+  return ret;
 }
 
 ModelArchitecture ModelArchitecture::read(istream& in) {
@@ -89,6 +124,8 @@ ModelArchitecture ModelArchitecture::read(istream& in) {
 
   expectToken(in, "fcLayer");
   expectToken(in, "=");
+
+  ret.fcLayer = FullyConnectedLayer::read(in);
 
   expectToken(in, "}");
   return ret;
@@ -106,7 +143,6 @@ Dims readDims(istream& in) {
       break;
     }
     ret.push_back(parse<int>(token));
-    expectToken(in, ",");
   }
 
   return ret;
@@ -115,6 +151,7 @@ Dims readDims(istream& in) {
 
 FullyConnectedLayer FullyConnectedLayer::read(istream& in) {
   FullyConnectedLayer ret;
+  expectToken(in, "{");
 
   expectToken(in, "hiddenLayerDims");
   expectToken(in, "=");

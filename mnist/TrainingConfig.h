@@ -20,9 +20,19 @@ struct LearningRateStrategy {
   double alpha;
 };
 
+struct TrainingDataConfig {
+  static TrainingDataConfig read(std::istream& in);
+
+  std::string trainInput;
+  std::string trainLabel;
+  std::string testInput;
+  std::string testLabel;
+};
+
 struct TrainingConfig {
   static TrainingConfig read(std::istream& in);
 
+  TrainingDataConfig trainingData;
   ModelArchitecture modelArch;
   LearningRateStrategy learningRateStrategy;
   int iterations;

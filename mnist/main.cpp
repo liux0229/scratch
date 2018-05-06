@@ -1,6 +1,6 @@
 #include <fenv.h>
 #include <folly/Format.h>
-#include <fstream>
+// #include <fstream>
 #include <iostream>
 
 #include "common.h"
@@ -18,15 +18,12 @@ int main() {
   setup();
   ifstream configFile("training.config");
   auto trainingConfig = TrainingConfig::read(configFile);
+  auto& data = trainingConfig.trainingData;
 
-  ExampleReader trainReader{
-      "/data/users/rockyliu/fbsource/fbcode/experimental/rockyliu/mnist/data/train-images-idx3-ubyte",
-      "/data/users/rockyliu/fbsource/fbcode/experimental/rockyliu/mnist/data/train-labels-idx1-ubyte"};
+  ExampleReader trainReader{data.trainInput, data.trainLabel};
   auto trainSample = trainReader.readAll();
 
-  ExampleReader testReader{
-      "/data/users/rockyliu/fbsource/fbcode/experimental/rockyliu/mnist/data/t10k-images-idx3-ubyte",
-      "/data/users/rockyliu/fbsource/fbcode/experimental/rockyliu/mnist/data/t10k-labels-idx1-ubyte"};
+  ExampleReader testReader{data.testInput, data.testLabel};
   auto testSample = testReader.readAll();
 
   Evaluator evaluator;
