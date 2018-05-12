@@ -106,6 +106,14 @@ Tensor Tensor::operator[](Dim x) const {
   return ret;
 }
 
+Float Tensor::norm() const {
+  Float squaredSum = 0;
+  for (auto x : data_) {
+    squaredSum += x * x;
+  }
+  return sqrt(squaredSum);
+}
+
 bool Tensor::equals(const Tensor& other, double eps) const {
   if (dims() != other.dims()) {
     return false;

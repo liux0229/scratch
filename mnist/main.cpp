@@ -11,7 +11,7 @@ using namespace std;
 using namespace folly;
 
 void setup() {
-  // feenableexcept(FE_INVALID | FE_OVERFLOW);
+  feenableexcept(FE_INVALID | FE_OVERFLOW);
 }
 
 int main() {

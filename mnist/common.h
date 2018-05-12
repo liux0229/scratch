@@ -14,7 +14,7 @@
 
 const int N_IMAGE = 28;
 const int N_CLASS = 10;
-using Float = float;
+using Float = double;
 
 using Dim = int;
 using Dims = std::vector<Dim>;
