@@ -86,6 +86,9 @@ class SGDTrainer {
         input_->load(examples_, false);
         label_->load(examples_, true);
         cout << "i=" << i << " loss: " << computeLoss() << endl;
+        for (auto op : forwardPass_) {
+          op->setDiagnostics(true);
+        }
       }
       if (evaluator_ && i % 5000 == 0) {
         auto model = make_shared<ForwardPassModel>(input_, output_);

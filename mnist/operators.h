@@ -42,6 +42,9 @@ class Operator {
 
   IBackPropOperator getBackPropOperator();
 
+  void setDiagnostics(bool value) { diagnostics_ = value; }
+  bool diagnostics() const { return diagnostics_; }
+
  protected:
   // The first dimension is implicit: it is the # of examples
   // Think of dim size as the size of one single example
@@ -58,6 +61,8 @@ class Operator {
   virtual GradientPair gradientFunc(BackPropOperator*) = 0;
 
   IBackPropOperator backPropOp_ = nullptr;
+
+  bool diagnostics_ = false;
 };
 
 class BackPropOperator {
@@ -138,11 +143,7 @@ class FCLayerOperator : public Operator {
   }
   Tensor& compute() override;
 
-  void applyGradient(const Gradient& g) {
-    SCHECK(g.size() == 2);
-    w_ += g[0];
-    b_ += g[1];
-  }
+  void applyGradient(const Gradient& g) override;
 
  private:
   std::function<Tensor*()> getParameters() override;

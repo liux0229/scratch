@@ -83,6 +83,21 @@ std::function<Tensor*()> FCLayerOperator::getParameters() {
   };
 }
 
+void FCLayerOperator::applyGradient(const Gradient& g) {
+  SCHECK(g.size() == 2);
+
+  if (diagnostics()) {
+    cout << folly::format(
+        "W gradient ratio: {}%; B gradient ratio: {}%\n",
+        g[0].norm() / w_.norm() * 100,
+        g[1].norm() / b_.norm() * 100);
+    setDiagnostics(false);
+  }
+
+  w_ += g[0];
+  b_ += g[1];
+}
+
 GradientPair FCLayerOperator::gradientFunc(BackPropOperator* op) {
   // input gradient = parent gradient * W^T
   auto& parents = op->parents();
@@ -248,7 +263,7 @@ Tensor& LossOperator::compute() {
     auto x = label(i);
     SCHECK(x < in.cols());
 
-    Float y = max(in(i, x), 1e-30f);
+    Float y = max(in(i, x), static_cast<Float>(1e-30f));
 
     s += -log(y) / label.n();
   }
