@@ -106,12 +106,16 @@ Tensor Tensor::operator[](Dim x) const {
   return ret;
 }
 
-Float Tensor::norm() const {
+Float Tensor::l2Norm() const {
+  return sqrt(l2Sum());
+}
+
+Float Tensor::l2Sum() const {
   Float squaredSum = 0;
   for (auto x : data_) {
     squaredSum += x * x;
   }
-  return sqrt(squaredSum);
+  return squaredSum;
 }
 
 bool Tensor::equals(const Tensor& other, double eps) const {

@@ -21,10 +21,12 @@ int readInt(istream& in) {
 }
 } // namespace
 
+// Into [-1, 1]
 void Example::normalize() {
   for (int i = 0; i < rows; i++) {
     for (int j = 0; j < cols; j++) {
-      image[i][j] /= 255.0;
+      image[i][j] /= 255.0 / 2;
+      image[i][j] -= 1.0;
     }
   }
 }

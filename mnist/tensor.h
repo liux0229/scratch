@@ -35,7 +35,8 @@ class Tensor {
   // Make this more efficient
   Tensor operator[](Dim x) const;
 
-  Float norm() const;
+  Float l2Norm() const;
+  Float l2Sum() const;
 
   bool operator==(const Tensor& other) const {
     return std::tie(dims_, data_) == std::tie(other.dims_, other.data_);

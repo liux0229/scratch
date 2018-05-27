@@ -50,6 +50,23 @@ class ForwardPassModel : public Model {
   OperatorList forwardOrder_;
 };
 
+struct Loss {
+  Float total() const {
+    return trainingLoss + regularizerLoss;
+  }
+  Float trainingLoss;
+  Float regularizerLoss;
+};
+
+ostream& operator<<(ostream& out, Loss loss) {
+  out << folly::format(
+      "training:{} regularizer:{} total:{}",
+      loss.trainingLoss,
+      loss.regularizerLoss,
+      loss.total());
+  return out;
+}
+
 class SGDTrainer {
  public:
   SGDTrainer(
@@ -72,6 +89,7 @@ class SGDTrainer {
         dynamic_pointer_cast<SoftmaxOperator>(output_), lossOp);
 
     forwardPass_ = GraphBuilder::topologicalSort(input_, lossOp_);
+    addRegularizer();
     backwardPass_ = buildBackwardPass(forwardPass_);
 
     int N = examples_.size(); // 60000
@@ -121,6 +139,21 @@ class SGDTrainer {
   }
 
  private:
+  void addRegularizer() {
+    if (trainingConfig_.regularizerConfig.policy == RegularizerConfig::L2) {
+      regularizer_ = make_shared<L2RegularizerOperator>(
+          trainingConfig_.regularizerConfig.lambda);
+    }
+    if (!regularizer_) {
+      return;
+    }
+
+    for (auto op : forwardPass_) {
+      op->attachRegularizer(*regularizer_);
+    }
+    forwardPass_.push_back(regularizer_);
+  }
+
   BackPropOperatorList buildBackwardPass(
       const OperatorList& forwardPass) const {
     BackPropOperatorList ret;
@@ -148,11 +181,13 @@ class SGDTrainer {
     return ret;
   }
 
-  double computeLoss() const {
+  Loss computeLoss() const {
     for (auto op : forwardPass_) {
       op->compute();
     }
-    return Vector{lossOp_->get()}(0);
+    Float regularizerLoss =
+        regularizer_ ? Vector{regularizer_->get()}(0) : static_cast<Float>(0.0);
+    return Loss{Vector{lossOp_->get()}(0), regularizerLoss};
   }
 
   // return gradient from each operator following the forward order
@@ -200,7 +235,8 @@ class SGDTrainer {
     gradients.reserve(forwardPass_.size());
 
     for (auto op : forwardPass_) {
-      auto g = op->computeGradientDebug([this]() { return computeLoss(); });
+      auto g =
+          op->computeGradientDebug([this]() { return computeLoss().total(); });
 
       // cout << op->name() << ": " << endl;
       // for (auto& gr : g) {
@@ -223,6 +259,7 @@ class SGDTrainer {
 
   IInputOperator label_;
   IOperator lossOp_;
+  IRegularizerOperator regularizer_;
   OperatorList forwardPass_;
   BackPropOperatorList backwardPass_;
 };

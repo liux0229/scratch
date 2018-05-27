@@ -11,6 +11,8 @@ using OperatorList = std::vector<IOperator>;
 class BackPropOperator;
 using IBackPropOperator = std::shared_ptr<BackPropOperator>;
 
+class RegularizerOperator;
+
 class Operator {
  public:
   Operator(Dims dims, OperatorList inputs) : dims_(dims), inputs_(inputs) {}
@@ -42,8 +44,14 @@ class Operator {
 
   IBackPropOperator getBackPropOperator();
 
-  void setDiagnostics(bool value) { diagnostics_ = value; }
-  bool diagnostics() const { return diagnostics_; }
+  void setDiagnostics(bool value) {
+    diagnostics_ = value;
+  }
+  bool diagnostics() const {
+    return diagnostics_;
+  }
+
+  virtual void attachRegularizer(RegularizerOperator& regularizer) {}
 
  protected:
   // The first dimension is implicit: it is the # of examples
@@ -145,6 +153,8 @@ class FCLayerOperator : public Operator {
 
   void applyGradient(const Gradient& g) override;
 
+  void attachRegularizer(RegularizerOperator& regularizer) override;
+
  private:
   std::function<Tensor*()> getParameters() override;
   GradientPair gradientFunc(BackPropOperator*) override;
@@ -211,4 +221,32 @@ class SoftmaxLossOperator : public Operator {
 
   ISoftmaxOperator softmaxOp_;
   ILossOperator lossOp_;
+};
+
+class RegularizerOperator : public Operator {
+ public:
+  RegularizerOperator(Float lambda) : Operator({}, {}), lambda_(lambda){};
+  void addParameter(Tensor* w) {
+    parameters_.push_back(w);
+  }
+
+ protected:
+  std::vector<Tensor*> parameters_;
+  Float lambda_;
+};
+
+using IRegularizerOperator = std::shared_ptr<RegularizerOperator>;
+
+class L2RegularizerOperator : public RegularizerOperator {
+ public:
+  using RegularizerOperator::RegularizerOperator;
+  std::string name() const override {
+    return "l2_regularizer";
+  }
+  Tensor& compute() override;
+  void applyGradient(const Gradient& g) override;
+
+ private:
+  std::function<Tensor*()> getParameters() override;
+  GradientPair gradientFunc(BackPropOperator*) override;
 };

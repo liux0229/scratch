@@ -17,6 +17,8 @@ void setup() {
 int main() {
   setup();
   ifstream configFile("training.config");
+  SCHECK(configFile.good());
+
   auto trainingConfig = TrainingConfig::read(configFile);
   auto& data = trainingConfig.trainingData;
 

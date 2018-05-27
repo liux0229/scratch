@@ -29,12 +29,20 @@ struct TrainingDataConfig {
   std::string testLabel;
 };
 
+struct RegularizerConfig {
+  static RegularizerConfig read(std::istream& in);
+
+  enum { None, L2 } policy;
+  double lambda;
+};
+
 struct TrainingConfig {
   static TrainingConfig read(std::istream& in);
 
   TrainingDataConfig trainingData;
   ModelArchitecture modelArch;
   LearningRateStrategy learningRateStrategy;
+  RegularizerConfig regularizerConfig;
   int iterations;
   int batchSize;
 };
@@ -44,6 +52,10 @@ std::ostream& operator<<(std::ostream& out, const ModelArchitecture& modelArch);
 std::ostream& operator<<(
     std::ostream& out,
     const LearningRateStrategy& learningRateStrategy);
+
+std::ostream& operator<<(
+    std::ostream& out,
+    const RegularizerConfig& regularizerConfig);
 
 std::ostream& operator<<(
     std::ostream& out,

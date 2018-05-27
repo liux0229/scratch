@@ -19,9 +19,16 @@ ostream& operator<<(
   return out;
 }
 
+ostream& operator<<(ostream& out, const RegularizerConfig& regularizerConfig) {
+  if (regularizerConfig.policy == RegularizerConfig::L2) {
+    out << folly::format("L2({})", regularizerConfig.lambda);
+  }
+  return out;
+}
+
 ostream& operator<<(ostream& out, const TrainingConfig& trainingConfig) {
   out << trainingConfig.modelArch << " " << trainingConfig.learningRateStrategy
-      << " "
+      << " " << trainingConfig.regularizerConfig << " "
       << folly::format(
              "iterations={} batch={}",
              trainingConfig.iterations,
@@ -80,6 +87,8 @@ TrainingConfig TrainingConfig::read(istream& in) {
       config.modelArch = ModelArchitecture::read(in);
     } else if (token == "learningRateStrategy") {
       config.learningRateStrategy = LearningRateStrategy::read(in);
+    } else if (token == "regularizerConfig") {
+      config.regularizerConfig = RegularizerConfig::read(in);
     } else if (token == "iterations") {
       config.iterations = expect<int>(in);
     } else if (token == "batchSize") {
@@ -169,6 +178,34 @@ LearningRateStrategy LearningRateStrategy::read(istream& in) {
   expectToken(in, "=");
 
   ret.alpha = expect<double>(in);
+
+  expectToken(in, "}");
+
+  return ret;
+}
+
+RegularizerConfig RegularizerConfig::read(std::istream& in) {
+  RegularizerConfig ret;
+  expectToken(in, "{");
+
+  expectToken(in, "policy");
+  expectToken(in, "=");
+
+  auto readLambda = [&ret, &in]() {
+    expectToken(in, "lambda");
+    expectToken(in, "=");
+    ret.lambda = expect<double>(in);
+  };
+
+  auto policy = expect<string>(in);
+  if (policy == "None") {
+    ret.policy = RegularizerConfig::None;
+  } else if (policy == "L2") {
+    ret.policy = RegularizerConfig::L2;
+    readLambda();
+  } else {
+    SCHECK(false, folly::format("Regularizer policy {} not expected", policy));
+  }
 
   expectToken(in, "}");
 

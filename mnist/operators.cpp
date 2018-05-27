@@ -88,9 +88,11 @@ void FCLayerOperator::applyGradient(const Gradient& g) {
 
   if (diagnostics()) {
     cout << folly::format(
-        "W gradient ratio: {}%; B gradient ratio: {}%\n",
-        g[0].norm() / w_.norm() * 100,
-        g[1].norm() / b_.norm() * 100);
+        "W gradient ratio: {:.2F}({:.2F}%); B gradient ratio: {:.2F}({:.2F}%)\n",
+        w_.l2Norm(),
+        g[0].l2Norm() / w_.l2Norm() * 100,
+        b_.l2Norm(),
+        g[1].l2Norm() / b_.l2Norm() * 100);
     setDiagnostics(false);
   }
 
@@ -119,6 +121,10 @@ GradientPair FCLayerOperator::gradientFunc(BackPropOperator* op) {
   return make_pair(
       Gradient{move(inputGradient)},
       Gradient{move(wGradient), move(bGradient)});
+}
+
+void FCLayerOperator::attachRegularizer(RegularizerOperator& regularizer) {
+  regularizer.addParameter(&w_);
 }
 
 ReluOperator::ReluOperator(IOperator input) : Operator(input->dims(), {input}) {
@@ -337,4 +343,48 @@ GradientPair SoftmaxLossOperator::gradientFunc(BackPropOperator* op) {
   }
 
   return make_pair(Gradient{move(g)}, Gradient{});
+}
+
+Tensor& L2RegularizerOperator::compute() {
+  Float s = 0;
+  for (auto* w : parameters_) {
+    s += lambda_ * w->l2Sum();
+  }
+
+  Tensor ret{Dims{1}};
+  Vector{ret}(0) = s;
+  output_ = ret;
+
+  return get();
+}
+
+void L2RegularizerOperator::applyGradient(const Gradient& g) {
+  SCHECK(parameters_.size() == g.size());
+  for (size_t i = 0; i < g.size(); ++i) {
+    (*parameters_[i]) += g[i];
+  }
+}
+
+GradientPair L2RegularizerOperator::gradientFunc(BackPropOperator*) {
+  Gradient g;
+  g.reserve(parameters_.size());
+  for (const auto* w : parameters_) {
+    Tensor t{w->dims()};
+    for (size_t i = 0; i < t.data().size(); ++i) {
+      t.data()[i] = lambda_ * w->data()[i] * 2;
+    }
+    g.push_back(move(t));
+  }
+  return make_pair(Gradient{}, Gradient{move(g)});
+}
+
+std::function<Tensor*()> L2RegularizerOperator::getParameters() {
+  size_t state = 0;
+  return [this, state]() mutable -> Tensor* {
+    if (state >= parameters_.size()) {
+      return nullptr;
+    } else {
+      return parameters_[state++];
+    }
+  };
 }
