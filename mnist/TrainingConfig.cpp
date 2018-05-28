@@ -36,9 +36,14 @@ ostream& operator<<(ostream& out, const TrainingConfig& trainingConfig) {
   return out;
 }
 
-TrainingConfig TrainingConfig::read(istream& in) {
-  TrainingConfig config;
+template <typename T>
+using Processors = map<string, function<void(T&)>>;
+
+template <typename T>
+T parseConfig(istream& in, const Processors<T>& processors) {
+  T config;
   expectToken(in, "{");
+
   while (true) {
     string token;
     in >> token;
@@ -48,24 +53,9 @@ TrainingConfig TrainingConfig::read(istream& in) {
 
     expectToken(in, "=");
 
-    if (token == "trainingData") {
-      config.trainingData = TrainingDataConfig::read(in);
-    } else if (token == "modelArch") {
-      config.modelArch = ModelArchitecture::read(in);
-    } else if (token == "learningRateStrategy") {
-      config.learningRateStrategy = LearningRateStrategy::read(in);
-    } else if (token == "regularizerConfig") {
-      config.regularizerConfig = RegularizerConfig::read(in);
-    } else if (token == "diagnosticsConfig") {
-      config.diagnosticsConfig = DiagnosticsConfig::read(in);
-    } else if (token == "evaluationConfig") {
-      config.evaluationConfig = EvaluationConfig::read(in);
-    } else if (token == "iterations") {
-      config.iterations = expect<int>(in);
-    } else if (token == "batchSize") {
-      config.batchSize = expect<int>(in);
-    } else if (token == "writeModelTo") {
-      config.writeModelTo = readString(in);
+    auto it = processors.find(token);
+    if (it != processors.end()) {
+      it->second(config);
     } else {
       SCHECK_MSG(false, format("Unexpected token: {}", token));
     }
@@ -73,56 +63,43 @@ TrainingConfig TrainingConfig::read(istream& in) {
   return config;
 }
 
+#define OP(block) [&](auto& config) { block }
+
+TrainingConfig TrainingConfig::read(istream& in) {
+  Processors<TrainingConfig> processors{
+      {"trainingData", OP(config.trainingData = TrainingDataConfig::read(in);)},
+      {"modelArch", OP(config.modelArch = ModelArchitecture::read(in);)},
+      {"learningRateStrategy",
+       OP(config.learningRateStrategy = LearningRateStrategy::read(in);)},
+      {"regularizerConfig",
+       OP(config.regularizerConfig = RegularizerConfig::read(in);)},
+      {"diagnosticsConfig",
+       OP(config.diagnosticsConfig = DiagnosticsConfig::read(in);)},
+      {"evaluationConfig",
+       OP(config.evaluationConfig = EvaluationConfig::read(in);)},
+      {"iterations", OP(config.iterations = expect<int>(in);)},
+      {"batchSize", OP(config.batchSize = expect<int>(in);)},
+      {"writeModelTo", OP(config.writeModelTo = readString(in);)},
+  };
+  return parseConfig(in, processors);
+}
+
 TrainingDataConfig TrainingDataConfig::read(istream& in) {
-  TrainingDataConfig ret;
-
-  expectToken(in, "{");
-  while (true) {
-    string token;
-    in >> token;
-    if (token == "}") {
-      break;
-    }
-
-    expectToken(in, "=");
-
-    if (token == "trainInput") {
-      ret.trainInput = readString(in);
-    } else if (token == "trainLabel") {
-      ret.trainLabel = readString(in);
-    } else if (token == "testInput") {
-      ret.testInput = readString(in);
-    } else if (token == "testLabel") {
-      ret.testLabel = readString(in);
-    }
-  }
-
-  return ret;
+  Processors<TrainingDataConfig> processors{
+      {"trainInput", OP(config.trainInput = readString(in);)},
+      {"trainLabel", OP(config.trainLabel = readString(in);)},
+      {"testInput", OP(config.testInput = readString(in);)},
+      {"testLabel", OP(config.testLabel = readString(in);)},
+  };
+  return parseConfig(in, processors);
 }
 
 ModelArchitecture ModelArchitecture::read(istream& in) {
-  ModelArchitecture ret;
-  expectToken(in, "{");
-
-  expectToken(in, "fcLayer");
-  expectToken(in, "=");
-
-  ret.fcLayer = FullyConnectedLayer::read(in);
-
-  while (true) {
-    string token;
-    in >> token;
-    if (token == "}") {
-      break;
-    } else if (token == "readModelFrom") {
-      expectToken(in, "=");
-      ret.readModelFrom = readString(in);
-    } else {
-      SCHECK(false, "Unexpected token: " + token);
-    }
-  }
-
-  return ret;
+  Processors<ModelArchitecture> processors{
+      {"fcLayer", OP(config.fcLayer = FullyConnectedLayer::read(in);)},
+      {"readModelFrom", OP(config.readModelFrom = readString(in);)},
+  };
+  return parseConfig(in, processors);
 }
 
 namespace {
@@ -144,105 +121,53 @@ Dims readDims(istream& in) {
 } // namespace
 
 FullyConnectedLayer FullyConnectedLayer::read(istream& in) {
-  FullyConnectedLayer ret;
-  expectToken(in, "{");
-
-  expectToken(in, "hiddenLayerDims");
-  expectToken(in, "=");
-  ret.hiddenLayerDims = readDims(in);
-
-  expectToken(in, "}");
-  return ret;
+  Processors<FullyConnectedLayer> processors{
+      {"hiddenLayerDims", OP(config.hiddenLayerDims = readDims(in);)},
+  };
+  return parseConfig(in, processors);
 }
 
 LearningRateStrategy LearningRateStrategy::read(istream& in) {
-  LearningRateStrategy ret;
-  expectToken(in, "{");
-
-  expectToken(in, "alpha");
-  expectToken(in, "=");
-
-  ret.alpha = expect<double>(in);
-
-  expectToken(in, "}");
-
-  return ret;
+  Processors<LearningRateStrategy> processors{
+      {"alpha", OP(config.alpha = expect<double>(in);)},
+  };
+  return parseConfig(in, processors);
 }
 
 RegularizerConfig RegularizerConfig::read(std::istream& in) {
-  RegularizerConfig ret;
-  expectToken(in, "{");
-
-  expectToken(in, "policy");
-  expectToken(in, "=");
-
-  auto readLambda = [&ret, &in]() {
-    expectToken(in, "lambda");
-    expectToken(in, "=");
-    ret.lambda = expect<double>(in);
+  Processors<RegularizerConfig> processors{
+      {"policy", OP({
+         auto policy = expect<string>(in);
+         if (policy == "None") {
+           config.policy = RegularizerConfig::None;
+         } else if (policy == "L2") {
+           config.policy = RegularizerConfig::L2;
+         } else {
+           SCHECK(
+               false,
+               folly::format("Regularizer policy {} not expected", policy));
+         }
+       })},
+      {"lambda", OP(config.lambda = expect<double>(in);)},
   };
 
-  auto policy = expect<string>(in);
-  if (policy == "None") {
-    ret.policy = RegularizerConfig::None;
-  } else if (policy == "L2") {
-    ret.policy = RegularizerConfig::L2;
-    readLambda();
-  } else {
-    SCHECK(false, folly::format("Regularizer policy {} not expected", policy));
-  }
-
-  expectToken(in, "}");
-
-  return ret;
+  return parseConfig(in, processors);
 }
 
 DiagnosticsConfig DiagnosticsConfig::read(std::istream& in) {
-  DiagnosticsConfig ret;
-  expectToken(in, "{");
-
-  while (true) {
-    string token;
-    in >> token;
-    if (token == "}") {
-      break;
-    }
-
-    expectToken(in, "=");
-
-    if (token == "lossIterations") {
-      ret.lossIterations = expect<int>(in);
-    } else if (token == "testErrorIterations") {
-      ret.testErrorIterations = expect<int>(in);
-    } else {
-      SCHECK_MSG(false, format("Unexpected token: {}", token));
-    }
-  }
-
-  return ret;
+  Processors<DiagnosticsConfig> processors{
+      {"lossIterations", OP(config.lossIterations = expect<int>(in);)},
+      {"testErrorIterations",
+       OP(config.testErrorIterations = expect<int>(in);)},
+  };
+  return parseConfig(in, processors);
 }
 
 EvaluationConfig EvaluationConfig::read(std::istream& in) {
-  EvaluationConfig ret;
-  expectToken(in, "{");
-
-  while (true) {
-    string token;
-    in >> token;
-    if (token == "}") {
-      break;
-    }
-
-    expectToken(in, "=");
-
-    if (token == "writeEvaluationDetailsTo") {
-      ret.writeEvaluationDetailsTo = readString(in);
-    } else if (token == "writeAll") {
-      ret.writeAll = expect<int>(in);
-    } else {
-      SCHECK_MSG(false, format("Unexpected token: {}", token));
-    }
-  }
-
-  return ret;
+  Processors<EvaluationConfig> processors{
+      {"writeEvaluationDetailsTo",
+       OP(config.writeEvaluationDetailsTo = readString(in);)},
+      {"writeAll", OP(config.writeAll = expect<int>(in);)},
+  };
+  return parseConfig(in, processors);
 }
