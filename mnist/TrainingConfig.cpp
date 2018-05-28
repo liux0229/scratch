@@ -154,11 +154,21 @@ RegularizerConfig RegularizerConfig::read(std::istream& in) {
   return parseConfig(in, processors);
 }
 
+LearningCurveConfig LearningCurveConfig::read(std::istream& in) {
+  Processors<LearningCurveConfig> processors{
+      {"writeTo", OP(config.writeTo = readString(in);)},
+      {"iterations", OP(config.iterations = expect<int>(in);)},
+  };
+  return parseConfig(in, processors);
+}
+
 DiagnosticsConfig DiagnosticsConfig::read(std::istream& in) {
   Processors<DiagnosticsConfig> processors{
       {"lossIterations", OP(config.lossIterations = expect<int>(in);)},
       {"testErrorIterations",
        OP(config.testErrorIterations = expect<int>(in);)},
+      {"learningCurveConfig",
+       OP(config.learningCurveConfig = LearningCurveConfig::read(in);)},
   };
   return parseConfig(in, processors);
 }

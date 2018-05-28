@@ -37,11 +37,19 @@ struct RegularizerConfig {
   double lambda;
 };
 
+struct LearningCurveConfig {
+  static LearningCurveConfig read(std::istream& in);
+
+  std::string writeTo;
+  int iterations = 10;
+};
+
 struct DiagnosticsConfig {
   static DiagnosticsConfig read(std::istream& in);
 
   int lossIterations = 1000;
   int testErrorIterations = 5000;
+  LearningCurveConfig learningCurveConfig;
 };
 
 struct EvaluationConfig {

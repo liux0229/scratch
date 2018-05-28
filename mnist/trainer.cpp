@@ -114,38 +114,15 @@ class SGDTrainer {
     addRegularizer();
     backwardPass_ = buildBackwardPass(forwardPass_);
 
-    int N = examples_.size(); // 60000
-    const int K = trainingConfig_.batchSize;
     const double alpha = trainingConfig_.learningRateStrategy.alpha;
-    int start = 0;
+    int exampleIndex = 0;
 
     for (int i = 0; i < trainingConfig_.iterations; ++i) {
-      // cout << "i=" << i << " loss: " << computeLoss() << endl;
+      printTotalLoss(i);
+      printEvaluationResult(i);
+      writeLearningCurve(i);
 
-      if (i % trainingConfig_.diagnosticsConfig.lossIterations == 0) {
-        input_->load(examples_, false);
-        label_->load(examples_, true);
-        cout << "i=" << i << " loss: " << computeLoss() << endl;
-        for (auto op : forwardPass_) {
-          op->setDiagnostics(true);
-        }
-      }
-      if (evaluator_ &&
-          i % trainingConfig_.diagnosticsConfig.testErrorIterations == 0) {
-        auto model = make_shared<ForwardPassModel>(input_, output_);
-        cout << folly::format(
-                    "i={} test error rate={}%", i, evaluator_(model) * 100)
-             << endl;
-      }
-
-      ExampleList batch;
-      if (start + K > N) {
-        start = 0;
-      }
-      for (int j = 0; j < K; ++j) {
-        batch.push_back(examples_[start + j]);
-      }
-      start += K;
+      auto batch = prepareBatch(exampleIndex);
 
       input_->load(batch, false);
       label_->load(batch, true);
@@ -156,6 +133,51 @@ class SGDTrainer {
       for (size_t k = 0; k < forwardPass_.size(); ++k) {
         forwardPass_[k]->applyGradient(g[k] * -alpha);
       }
+    }
+  }
+
+  ExampleList prepareBatch(int& start) {
+    const int K = trainingConfig_.batchSize;
+    const int N = examples_.size();
+
+    ExampleList batch;
+    if (start + K > N) {
+      start = 0;
+    }
+    for (int j = 0; j < K; ++j) {
+      batch.push_back(examples_[start + j]);
+    }
+    start += K;
+    return batch;
+  }
+
+  void writeLearningCurve(int i) {
+    // cout << "i=" << i << " loss: " << computeLoss() << endl;
+    // open and keep file
+    if (i % trainingConfig_.diagnosticsConfig.learningCurveConfig.iterations !=
+        0) {
+      return;
+    }
+  }
+
+  void printTotalLoss(int i) {
+    if (i % trainingConfig_.diagnosticsConfig.lossIterations == 0) {
+      input_->load(examples_, false);
+      label_->load(examples_, true);
+      cout << "i=" << i << " loss: " << computeLoss() << endl;
+      for (auto op : forwardPass_) {
+        op->setDiagnostics(true);
+      }
+    }
+  }
+
+  void printEvaluationResult(int i) {
+    if (evaluator_ &&
+        i % trainingConfig_.diagnosticsConfig.testErrorIterations == 0) {
+      auto model = make_shared<ForwardPassModel>(input_, output_);
+      cout << folly::format(
+                  "i={} test error rate={}%", i, evaluator_(model) * 100)
+           << endl;
     }
   }
 
