@@ -5,7 +5,8 @@
 using namespace std;
 
 std::ostream& operator<<(std::ostream& out, const EvaluationResult& r) {
-  out << folly::format("Error rate is {}% ", r.errorRate) << r.errorRates;
+  out << folly::format("Error rate is {}% ", r.errorRate * 100.0)
+      << r.errorRates * 100.0;
   return out;
 }
 
@@ -38,5 +39,5 @@ EvaluationResult Evaluator::evaluate(IModel model, ExampleList tests) const {
     ++index;
   }
 
-  return EvaluationResult{100.0 * error / tests.size(), errors / total * 100.0};
+  return EvaluationResult{1.0 * error / tests.size(), errors / total};
 }
