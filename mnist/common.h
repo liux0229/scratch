@@ -1,5 +1,6 @@
 #pragma once
 
+#include <folly/Format.h>
 #include <folly/Optional.h>
 #include <algorithm>
 #include <array>
@@ -7,6 +8,7 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -54,19 +56,10 @@ class Model {
  public:
   virtual ~Model() {}
   virtual Prediction predict(const Example& e) const = 0;
+  virtual void read(std::istream& in) {}
+  virtual void write(std::ostream& out) const {}
 };
 using IModel = std::shared_ptr<Model>;
-
-template <typename T>
-std::ostream& operator<<(std::ostream& out, const std::vector<T>& v) {
-  out << "[";
-  for (auto& x : v) {
-    out << x << " ";
-  }
-  out << "]";
-
-  return out;
-}
 
 void printStackTrace();
 
@@ -146,6 +139,29 @@ std::vector<T> operator-(const std::vector<T>& a, const std::vector<T>& b) {
   return ret;
 }
 
+template <typename T, typename C>
+std::vector<T> operator*(const std::vector<T>& a, C b) {
+  auto ret = a;
+
+  for (auto& x : ret) {
+    x *= b;
+  }
+
+  return ret;
+}
+
+template <typename T>
+std::vector<T> operator/(const std::vector<T>& a, const std::vector<T>& b) {
+  SCHECK(a.size() == b.size());
+
+  std::vector<T> ret;
+  for (size_t i = 0; i < a.size(); ++i) {
+    ret.push_back(a[i] / b[i]);
+  }
+
+  return ret;
+}
+
 class TaskRunner {
  public:
   using Task = std::function<void()>;
@@ -164,3 +180,79 @@ class TaskRunner {
   const int nThreads_ = 32;
   std::unique_ptr<folly::Executor> executor_;
 };
+
+namespace {
+using std::istream;
+using std::string;
+
+void expectToken(istream& in, string expected) {
+  string token;
+  in >> token;
+  SCHECK_MSG(
+      token == expected,
+      folly::format("Expect {}; received {}", expected, token));
+}
+
+template <typename T>
+T expect(istream& in) {
+  T x;
+  in >> x;
+  SCHECK(!in.fail());
+  return x;
+}
+
+string readString(istream& in) {
+  string token;
+  in >> token;
+  SCHECK(
+      token.size() >= 2 && token[0] == '"' && token[token.size() - 1] == '"');
+  return token.substr(1, token.size() - 2);
+}
+
+template <typename T>
+T parse(string s) {
+  std::istringstream in(s);
+  T ret;
+  in >> ret;
+  return ret;
+}
+} // namespace
+
+template <typename T>
+std::ostream& operator<<(std::ostream& out, const std::vector<T>& v) {
+  out << "[ ";
+  for (auto& x : v) {
+    out << x << " ";
+  }
+  out << "]";
+
+  return out;
+}
+
+template <typename T>
+std::istream& operator>>(std::istream& in, std::vector<T>& v) {
+  expectToken(in, "[");
+
+  while (true) {
+    std::string s;
+    in >> s;
+    if (s == "]") {
+      break;
+    }
+    auto x = parse<T>(s);
+    v.push_back(x);
+  }
+
+  return in;
+}
+
+template <typename T, std::size_t N>
+std::ostream& operator<<(std::ostream& out, const std::array<T, N>& v) {
+  out << "[ ";
+  for (auto& x : v) {
+    out << x << " ";
+  }
+  out << "]";
+
+  return out;
+}

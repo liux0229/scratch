@@ -88,7 +88,9 @@ void FCLayerOperator::applyGradient(const Gradient& g) {
 
   if (diagnostics()) {
     cout << folly::format(
-        "W gradient ratio: {:.2F}({:.2F}%); B gradient ratio: {:.2F}({:.2F}%)\n",
+        "{} W gradient ratio: {:.2F}({:.2F}%); "
+        "B gradient ratio: {:.2F}({:.2F}%)\n",
+        name(),
         w_.l2Norm(),
         g[0].l2Norm() / w_.l2Norm() * 100,
         b_.l2Norm(),
@@ -125,6 +127,26 @@ GradientPair FCLayerOperator::gradientFunc(BackPropOperator* op) {
 
 void FCLayerOperator::attachRegularizer(RegularizerOperator& regularizer) {
   regularizer.addParameter(&w_);
+}
+
+void FCLayerOperator::read(std::istream& in) {
+  Operator::read(in);
+
+  expectToken(in, "W");
+  expectToken(in, "=");
+  w_ = Tensor::read(in);
+
+  expectToken(in, "B");
+  expectToken(in, "=");
+  b_ = Tensor::read(in);
+}
+
+void FCLayerOperator::write(std::ostream& out) const {
+  Operator::write(out);
+  out << "W = ";
+  Tensor::write(out, w_);
+  out << "B = ";
+  Tensor::write(out, b_);
 }
 
 ReluOperator::ReluOperator(IOperator input) : Operator(input->dims(), {input}) {
@@ -360,6 +382,18 @@ Tensor& L2RegularizerOperator::compute() {
 
 void L2RegularizerOperator::applyGradient(const Gradient& g) {
   SCHECK(parameters_.size() == g.size());
+
+  if (diagnostics()) {
+    cout << name() << " gradient ratio:";
+    for (size_t i = 0; i < g.size(); ++i) {
+      auto& w = *parameters_[i];
+      cout << folly::format(
+          " {:.2F}({:.2F}%)", w.l2Norm(), g[i].l2Norm() / w.l2Norm() * 100);
+    }
+    cout << endl;
+    setDiagnostics(false);
+  }
+
   for (size_t i = 0; i < g.size(); ++i) {
     (*parameters_[i]) += g[i];
   }

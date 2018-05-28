@@ -36,39 +36,6 @@ ostream& operator<<(ostream& out, const TrainingConfig& trainingConfig) {
   return out;
 }
 
-namespace {
-void expectToken(istream& in, string expected) {
-  string token;
-  in >> token;
-  SCHECK_MSG(
-      token == expected, format("Expect {}; received {}", expected, token));
-}
-
-template <typename T>
-T expect(istream& in) {
-  T x;
-  in >> x;
-  SCHECK(!in.fail());
-  return x;
-}
-
-string readString(istream& in) {
-  string token;
-  in >> token;
-  SCHECK(
-      token.size() >= 2 && token[0] == '"' && token[token.size() - 1] == '"');
-  return token.substr(1, token.size() - 2);
-}
-
-template <typename T>
-T parse(string s) {
-  istringstream in(s);
-  T ret;
-  in >> ret;
-  return ret;
-}
-} // namespace
-
 TrainingConfig TrainingConfig::read(istream& in) {
   TrainingConfig config;
   expectToken(in, "{");
@@ -89,10 +56,16 @@ TrainingConfig TrainingConfig::read(istream& in) {
       config.learningRateStrategy = LearningRateStrategy::read(in);
     } else if (token == "regularizerConfig") {
       config.regularizerConfig = RegularizerConfig::read(in);
+    } else if (token == "diagnosticsConfig") {
+      config.diagnosticsConfig = DiagnosticsConfig::read(in);
+    } else if (token == "evaluationConfig") {
+      config.evaluationConfig = EvaluationConfig::read(in);
     } else if (token == "iterations") {
       config.iterations = expect<int>(in);
     } else if (token == "batchSize") {
       config.batchSize = expect<int>(in);
+    } else if (token == "writeModelTo") {
+      config.writeModelTo = readString(in);
     } else {
       SCHECK_MSG(false, format("Unexpected token: {}", token));
     }
@@ -136,7 +109,19 @@ ModelArchitecture ModelArchitecture::read(istream& in) {
 
   ret.fcLayer = FullyConnectedLayer::read(in);
 
-  expectToken(in, "}");
+  while (true) {
+    string token;
+    in >> token;
+    if (token == "}") {
+      break;
+    } else if (token == "readModelFrom") {
+      expectToken(in, "=");
+      ret.readModelFrom = readString(in);
+    } else {
+      SCHECK(false, "Unexpected token: " + token);
+    }
+  }
+
   return ret;
 }
 
@@ -208,6 +193,56 @@ RegularizerConfig RegularizerConfig::read(std::istream& in) {
   }
 
   expectToken(in, "}");
+
+  return ret;
+}
+
+DiagnosticsConfig DiagnosticsConfig::read(std::istream& in) {
+  DiagnosticsConfig ret;
+  expectToken(in, "{");
+
+  while (true) {
+    string token;
+    in >> token;
+    if (token == "}") {
+      break;
+    }
+
+    expectToken(in, "=");
+
+    if (token == "lossIterations") {
+      ret.lossIterations = expect<int>(in);
+    } else if (token == "testErrorIterations") {
+      ret.testErrorIterations = expect<int>(in);
+    } else {
+      SCHECK_MSG(false, format("Unexpected token: {}", token));
+    }
+  }
+
+  return ret;
+}
+
+EvaluationConfig EvaluationConfig::read(std::istream& in) {
+  EvaluationConfig ret;
+  expectToken(in, "{");
+
+  while (true) {
+    string token;
+    in >> token;
+    if (token == "}") {
+      break;
+    }
+
+    expectToken(in, "=");
+
+    if (token == "writeEvaluationDetailsTo") {
+      ret.writeEvaluationDetailsTo = readString(in);
+    } else if (token == "writeAll") {
+      ret.writeAll = expect<int>(in);
+    } else {
+      SCHECK_MSG(false, format("Unexpected token: {}", token));
+    }
+  }
 
   return ret;
 }

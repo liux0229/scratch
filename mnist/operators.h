@@ -53,6 +53,13 @@ class Operator {
 
   virtual void attachRegularizer(RegularizerOperator& regularizer) {}
 
+  virtual void read(std::istream& in) {
+    expectToken(in, name());
+  }
+  virtual void write(std::ostream& out) const {
+    out << name() << std::endl;
+  }
+
  protected:
   // The first dimension is implicit: it is the # of examples
   // Think of dim size as the size of one single example
@@ -154,6 +161,9 @@ class FCLayerOperator : public Operator {
   void applyGradient(const Gradient& g) override;
 
   void attachRegularizer(RegularizerOperator& regularizer) override;
+
+  void read(std::istream& in) override;
+  void write(std::ostream& out) const override;
 
  private:
   std::function<Tensor*()> getParameters() override;

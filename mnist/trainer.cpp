@@ -1,6 +1,6 @@
-#include <iostream>
-
 #include <folly/Format.h>
+#include <fstream>
+#include <iostream>
 
 #include "graph.h"
 #include "trainer.h"
@@ -42,6 +42,18 @@ class ForwardPassModel : public Model {
     }
 
     return pred;
+  }
+
+  void read(istream& in) {
+    for (auto op : forwardOrder_) {
+      op->read(in);
+    }
+  }
+
+  void write(ostream& out) const {
+    for (auto op : forwardOrder_) {
+      op->write(out);
+    }
   }
 
  private:
@@ -89,6 +101,16 @@ class SGDTrainer {
         dynamic_pointer_cast<SoftmaxOperator>(output_), lossOp);
 
     forwardPass_ = GraphBuilder::topologicalSort(input_, lossOp_);
+
+    if (trainingConfig_.modelArch.readModelFrom == "") {
+      trainInternal();
+    }
+
+    return make_pair(input_, output_);
+  }
+
+ private:
+  void trainInternal() {
     addRegularizer();
     backwardPass_ = buildBackwardPass(forwardPass_);
 
@@ -100,7 +122,7 @@ class SGDTrainer {
     for (int i = 0; i < trainingConfig_.iterations; ++i) {
       // cout << "i=" << i << " loss: " << computeLoss() << endl;
 
-      if (i % 1000 == 0) {
+      if (i % trainingConfig_.diagnosticsConfig.lossIterations == 0) {
         input_->load(examples_, false);
         label_->load(examples_, true);
         cout << "i=" << i << " loss: " << computeLoss() << endl;
@@ -108,7 +130,8 @@ class SGDTrainer {
           op->setDiagnostics(true);
         }
       }
-      if (evaluator_ && i % 5000 == 0) {
+      if (evaluator_ &&
+          i % trainingConfig_.diagnosticsConfig.testErrorIterations == 0) {
         auto model = make_shared<ForwardPassModel>(input_, output_);
         cout << folly::format(
                     "i={} test error rate={}%", i, evaluator_(model) * 100)
@@ -134,11 +157,8 @@ class SGDTrainer {
         forwardPass_[k]->applyGradient(g[k] * -alpha);
       }
     }
-
-    return make_pair(input_, output_);
   }
 
- private:
   void addRegularizer() {
     if (trainingConfig_.regularizerConfig.policy == RegularizerConfig::L2) {
       regularizer_ = make_shared<L2RegularizerOperator>(
@@ -279,5 +299,17 @@ IModel Trainer::train(
 
   cout << trainingConfig << endl;
 
-  return make_shared<ForwardPassModel>(ops.first, ops.second);
+  auto model = make_shared<ForwardPassModel>(ops.first, ops.second);
+  if (trainingConfig.modelArch.readModelFrom != "") {
+    ifstream in(trainingConfig.modelArch.readModelFrom);
+    SCHECK(!in.fail());
+    model->read(in);
+  }
+
+  if (trainingConfig.writeModelTo != "") {
+    ofstream out(trainingConfig.writeModelTo);
+    model->write(out);
+  }
+
+  return model;
 }

@@ -12,6 +12,7 @@ struct ModelArchitecture {
   static ModelArchitecture read(std::istream& in);
 
   FullyConnectedLayer fcLayer;
+  std::string readModelFrom;
 };
 
 struct LearningRateStrategy {
@@ -36,6 +37,20 @@ struct RegularizerConfig {
   double lambda;
 };
 
+struct DiagnosticsConfig {
+  static DiagnosticsConfig read(std::istream& in);
+
+  int lossIterations = 1000;
+  int testErrorIterations = 5000;
+};
+
+struct EvaluationConfig {
+  static EvaluationConfig read(std::istream& in);
+
+  std::string writeEvaluationDetailsTo;
+  bool writeAll = false;
+};
+
 struct TrainingConfig {
   static TrainingConfig read(std::istream& in);
 
@@ -43,8 +58,11 @@ struct TrainingConfig {
   ModelArchitecture modelArch;
   LearningRateStrategy learningRateStrategy;
   RegularizerConfig regularizerConfig;
+  DiagnosticsConfig diagnosticsConfig;
+  EvaluationConfig evaluationConfig;
   int iterations;
   int batchSize;
+  std::string writeModelTo;
 };
 
 std::ostream& operator<<(std::ostream& out, const ModelArchitecture& modelArch);

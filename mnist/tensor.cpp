@@ -153,6 +153,33 @@ ostream& operator<<(ostream& out, const Tensor& tensor) {
   return out;
 }
 
+Tensor Tensor::read(std::istream& in) {
+  expectToken(in, "{");
+
+  Dims dims;
+  in >> dims;
+  Tensor ret{dims};
+
+  std::vector<Float> x;
+  in >> x;
+
+  SCHECK(ret.data().size() == x.size());
+  ret.data() = x;
+
+  expectToken(in, "}");
+
+  return ret;
+}
+
+void Tensor::write(std::ostream& out, const Tensor& tensor) {
+  out << "{" << endl;
+
+  out << tensor.dims() << endl;
+  out << tensor.data() << endl;
+
+  out << "}" << endl;
+}
+
 Vector::Vector(Tensor& tensor) : tensor_(&tensor) {
   // cout << tensor.dims_ << endl;
   SCHECK(tensor.dims_.size() == 1);
@@ -208,12 +235,4 @@ Tensor Matrix::rowSum() const {
     }
   }
   return ret;
-}
-
-Gradient operator*(const Gradient& g, double a) {
-  auto r = g;
-  for (auto& gr : r) {
-    gr *= a;
-  }
-  return r;
 }

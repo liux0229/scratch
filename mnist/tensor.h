@@ -44,6 +44,9 @@ class Tensor {
 
   bool equals(const Tensor& other, double eps) const;
 
+  static Tensor read(std::istream& in);
+  static void write(std::ostream& out, const Tensor& tensor);
+
   friend void print(std::ostream& out, const Tensor& tensor, std::string tab);
 
  private:
@@ -236,5 +239,3 @@ Tensor operator+(const Matrix& a, const Vector& b);
 using Gradient = std::vector<Tensor>;
 using GradientList = std::vector<Gradient>;
 using GradientPair = std::pair<Gradient, Gradient>;
-
-Gradient operator*(const Gradient& g, double a);

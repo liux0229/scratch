@@ -28,14 +28,13 @@ int main() {
   ExampleReader testReader{data.testInput, data.testLabel};
   auto testSample = testReader.readAll();
 
-  Evaluator evaluator;
+  Evaluator evaluator(
+      trainingConfig.evaluationConfig.writeEvaluationDetailsTo,
+      trainingConfig.evaluationConfig.writeAll);
   auto model = Trainer::train(
       trainSample, trainingConfig, [&evaluator, &testSample](IModel model) {
-        return evaluator.evaluate(model, testSample);
+        return evaluator.evaluate(model, testSample).errorRate;
       });
 
-  double error = evaluator.evaluate(model, testSample);
-  // double error = evaluator.evaluate(model, trainSample);
-
-  cout << format("Error rate is {}%", 100 * error) << endl;
+  cout << evaluator.evaluate(model, testSample) << endl;
 }
