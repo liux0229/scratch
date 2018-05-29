@@ -60,6 +60,15 @@ class Operator {
     out << name() << std::endl;
   }
 
+  auto getParameterList() {
+    std::vector<const Tensor*> ret;
+    auto getter = getParameters();
+    while (auto w = getter()) {
+      ret.push_back(w);
+    }
+    return ret;
+  }
+
  protected:
   // The first dimension is implicit: it is the # of examples
   // Think of dim size as the size of one single example

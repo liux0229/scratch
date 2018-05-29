@@ -1,4 +1,5 @@
 #include <folly/Format.h>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 
@@ -79,6 +80,57 @@ ostream& operator<<(ostream& out, Loss loss) {
   return out;
 }
 
+// Maintain an OutputFile abstraction that allows appending while allowing
+// another program to read from it.
+class OutputFile {
+ public:
+  using OstreamPtr = unique_ptr<ostream, function<void(ostream*)>>;
+
+  OutputFile(string path, int cacheOstreamFor)
+      : path_(path), cacheOstreamFor_(cacheOstreamFor) {
+    runCommand("rm -f {}", path_);
+  }
+
+  ostream& openForAppend() {
+    if (cachedOstreamAccessed_ >= cacheOstreamFor_) {
+      cachedOstream_ = nullptr;
+      cachedOstreamAccessed_ = 0;
+    }
+
+    if (!cachedOstream_) {
+      runCommand("touch {}", path_);
+      runCommand("cp {} {}", path_, tmpPath());
+
+      cachedOstream_ = OstreamPtr(
+          new ofstream(tmpPath(), ios_base::out | std::ios_base::app),
+          [this](ostream* out) {
+            delete out;
+            runCommand("mv {} {}", tmpPath(), path_);
+          });
+    }
+
+    ++cachedOstreamAccessed_;
+    return *cachedOstream_;
+  }
+
+ private:
+  template <typename... Args>
+  static void runCommand(string fmt, Args&&... args) {
+    auto ret =
+        system(folly::format(fmt, std::forward<Args>(args)...).str().c_str());
+    SCHECK(ret == 0);
+  }
+
+  string tmpPath() const {
+    return path_ + ".tmp";
+  }
+
+  const string path_;
+  const int cacheOstreamFor_;
+  OstreamPtr cachedOstream_;
+  int cachedOstreamAccessed_ = 0;
+};
+
 class SGDTrainer {
  public:
   SGDTrainer(
@@ -91,7 +143,11 @@ class SGDTrainer {
         output_(output),
         examples_(examples),
         trainingConfig_(trainingConfig),
-        evaluator_(evaluator) {}
+        evaluator_(evaluator),
+        learningCurveOutput_(
+            learningCurveConfig().writeTo,
+            learningCurveConfig().flushEvery /
+                learningCurveConfig().writeOutEvery) {}
   pair<IInputOperator, IOperator> train() {
     label_ = make_shared<InputOperator>(Dims{});
     auto lossOp = make_shared<LossOperator>(output_, label_);
@@ -110,6 +166,10 @@ class SGDTrainer {
   }
 
  private:
+  const LearningCurveConfig& learningCurveConfig() const {
+    return trainingConfig_.diagnosticsConfig.learningCurveConfig;
+  }
+
   void trainInternal() {
     addRegularizer();
     backwardPass_ = buildBackwardPass(forwardPass_);
@@ -120,15 +180,15 @@ class SGDTrainer {
     for (int i = 0; i < trainingConfig_.iterations; ++i) {
       printTotalLoss(i);
       printEvaluationResult(i);
-      writeLearningCurve(i);
 
       auto batch = prepareBatch(exampleIndex);
-
       input_->load(batch, false);
       label_->load(batch, true);
-
       auto g = computeGradient(batch);
       // verifyGradient(batch, g);
+
+      // At this point we have done the forward pass
+      writeLearningCurve(i);
 
       for (size_t k = 0; k < forwardPass_.size(); ++k) {
         forwardPass_[k]->applyGradient(g[k] * -alpha);
@@ -151,13 +211,33 @@ class SGDTrainer {
     return batch;
   }
 
-  void writeLearningCurve(int i) {
-    // cout << "i=" << i << " loss: " << computeLoss() << endl;
-    // open and keep file
-    if (i % trainingConfig_.diagnosticsConfig.learningCurveConfig.iterations !=
+  void writeLearningCurve(int iteration) {
+    if (iteration %
+            trainingConfig_.diagnosticsConfig.learningCurveConfig
+                .writeOutEvery !=
         0) {
       return;
     }
+
+    auto& out = learningCurveOutput_.openForAppend();
+    out << iteration << " " << getLossAfterForwardPass().trainingLoss;
+
+    for (auto op : forwardPass_) {
+      if (dynamic_pointer_cast<RegularizerOperator>(op)) {
+        continue;
+      }
+      for (auto* w : op->getParameterList()) {
+        out << " " << w->l2Norm();
+      }
+    }
+
+    for (auto op : backwardPass_) {
+      for (auto& g : op->parameterGradient()) {
+        out << " " << g.l2Norm();
+      }
+    }
+
+    out << endl;
   }
 
   void printTotalLoss(int i) {
@@ -227,6 +307,10 @@ class SGDTrainer {
     for (auto op : forwardPass_) {
       op->compute();
     }
+    return getLossAfterForwardPass();
+  }
+
+  Loss getLossAfterForwardPass() const {
     Float regularizerLoss =
         regularizer_ ? Vector{regularizer_->get()}(0) : static_cast<Float>(0.0);
     return Loss{Vector{lossOp_->get()}(0), regularizerLoss};
@@ -298,6 +382,7 @@ class SGDTrainer {
   TrainingConfig trainingConfig_;
   // should never be used to influence trainer's behavior
   TestEvaluator evaluator_;
+  OutputFile learningCurveOutput_;
 
   IInputOperator label_;
   IOperator lossOp_;

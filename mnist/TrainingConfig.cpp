@@ -157,7 +157,8 @@ RegularizerConfig RegularizerConfig::read(std::istream& in) {
 LearningCurveConfig LearningCurveConfig::read(std::istream& in) {
   Processors<LearningCurveConfig> processors{
       {"writeTo", OP(config.writeTo = readString(in);)},
-      {"iterations", OP(config.iterations = expect<int>(in);)},
+      {"writeOutEvery", OP(config.writeOutEvery = expect<int>(in);)},
+      {"flushEvery", OP(config.flushEvery = expect<int>(in);)},
   };
   return parseConfig(in, processors);
 }

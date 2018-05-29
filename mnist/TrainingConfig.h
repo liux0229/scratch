@@ -41,7 +41,8 @@ struct LearningCurveConfig {
   static LearningCurveConfig read(std::istream& in);
 
   std::string writeTo;
-  int iterations = 10;
+  int writeOutEvery = 10;
+  int flushEvery = 100;
 };
 
 struct DiagnosticsConfig {
