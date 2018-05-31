@@ -34,8 +34,13 @@ Gradient Operator::computeGradientDebug(const std::function<double()>& loss) {
       auto loss2 = loss();
 
       g.data()[i] = (loss1 - loss2) / (2 * eps);
-      // cout << "i=" << i << " " << cur << " " << loss1 << " " << loss2
-      //      << " diff: " << (loss1 - loss2) << " g=" << g.data()[i] << endl;
+      // if (dynamic_cast<RegularizerOperator*>(this)) {
+      //   if (i == 0) {
+      //     cout << "i=" << i << " " << cur << " " << loss1 << " " << loss2
+      //          << " diff: " << (loss1 - loss2) << " g=" << g.data()[i] << endl;
+      //   }
+      // }
+
       w->data()[i] = cur;
     }
     gs.push_back(g);
@@ -49,7 +54,7 @@ Gradient Operator::computeGradientDebug(const std::function<double()>& loss) {
 FCLayerOperator::FCLayerOperator(int width, IOperator input)
     : Operator({width}, {input}),
       w_(Dims{input->dims()[0], width},
-      // Use 1000 to debug W.r gradient
+         // Use 1000 to debug W.r gradient
          UniformInitScheme{-1.0 / (input->dims()[0] + width),
                            1.0 / (input->dims()[0] + width)}),
       b_(Dims{width}, UniformInitScheme{}) {
@@ -403,12 +408,17 @@ void L2RegularizerOperator::applyGradient(const Gradient& g) {
 }
 
 GradientPair L2RegularizerOperator::gradientFunc(BackPropOperator*) {
+  // cout << "L2RegularizerOperator::gradientFunc" << endl;
+
   Gradient g;
   g.reserve(parameters_.size());
   for (const auto* w : parameters_) {
     Tensor t{w->dims()};
     for (size_t i = 0; i < t.data().size(); ++i) {
       t.data()[i] = lambda_ * w->data()[i] * 2;
+      // if (i == 0) {
+      //   cout << w->data()[i] << " " << t.data()[i] << endl;
+      // }
     }
     g.push_back(move(t));
   }

@@ -168,6 +168,7 @@ DiagnosticsConfig DiagnosticsConfig::read(std::istream& in) {
       {"lossIterations", OP(config.lossIterations = expect<int>(in);)},
       {"testErrorIterations",
        OP(config.testErrorIterations = expect<int>(in);)},
+      {"verifyGradient", OP(config.verifyGradient = expect<int>(in);)},
       {"learningCurveConfig",
        OP(config.learningCurveConfig = LearningCurveConfig::read(in);)},
   };
