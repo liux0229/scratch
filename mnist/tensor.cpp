@@ -2,30 +2,24 @@
 
 #include <cmath>
 #include <cstring>
-#include <random>
 #include "common.h"
 
 using namespace std;
 
-Tensor::Tensor(Dims dims, Tensor::InitScheme scheme) : dims_(dims) {
+void UniformInitScheme::init(Tensor& t) {
+  uniform_real_distribution<> dist(a_, b_);
+  for (auto& x : t.data()) {
+    x = dist(gen());
+  }
+}
+
+Tensor::Tensor(Dims dims, InitScheme&& scheme) : dims_(dims) {
   int n = 1;
   for (auto d : dims_) {
     n *= d;
   }
   data_ = vector<Float>(n);
-
-  random_device rd;
-  mt19937 gen(rd());
-  uniform_real_distribution<> dist(-1.0, 1.0);
-  switch (scheme) {
-    case InitScheme::UniformRandom:
-      for (auto& x : data_) {
-        x = dist(gen);
-      }
-      break;
-    case InitScheme::Zero:
-      break;
-  }
+  scheme.init(*this);
 }
 
 Tensor::Tensor(const vector<vector<Float>>& v) {
@@ -227,7 +221,7 @@ Tensor operator+(const Matrix& a, const Vector& b) {
 }
 
 Tensor Matrix::rowSum() const {
-  Tensor ret{Dims{cols()}, Tensor::InitScheme::Zero};
+  Tensor ret{Dims{cols()}};
   Vector v{ret};
   for (int j = 0; j < cols(); ++j) {
     for (int i = 0; i < rows(); ++i) {

@@ -48,8 +48,11 @@ Gradient Operator::computeGradientDebug(const std::function<double()>& loss) {
 // which needs to be changed (because # rows can be changed)
 FCLayerOperator::FCLayerOperator(int width, IOperator input)
     : Operator({width}, {input}),
-      w_(Dims{input->dims()[0], width}, Tensor::InitScheme::UniformRandom),
-      b_(Dims{width}, Tensor::InitScheme::UniformRandom) {
+      w_(Dims{input->dims()[0], width},
+      // Use 1000 to debug W.r gradient
+         UniformInitScheme{-1.0 / (input->dims()[0] + width),
+                           1.0 / (input->dims()[0] + width)}),
+      b_(Dims{width}, UniformInitScheme{}) {
   SCHECK(input->dims().size() == 1);
 }
 
@@ -304,7 +307,7 @@ Tensor& LossOperator::compute() {
 }
 
 GradientPair LossOperator::gradientFunc(BackPropOperator* op) {
-  Tensor g{inputs_[0]->get().dims(), Tensor::InitScheme::Zero};
+  Tensor g{inputs_[0]->get().dims()};
   Matrix m{g};
   Matrix in{inputs_[0]->get()};
   Vector label{inputs_[1]->get()};

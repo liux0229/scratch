@@ -2,18 +2,45 @@
 
 #include <folly/futures/Promise.h>
 #include <atomic>
+#include <random>
 
 struct Example;
 
+class Tensor;
+class InitScheme {
+ public:
+  InitScheme() {}
+  virtual void init(Tensor& t) = 0;
+  virtual ~InitScheme() {}
+
+ protected:
+  std::mt19937& gen() {
+    return gen_;
+  }
+
+ private:
+  std::random_device rd_;
+  std::mt19937 gen_{rd_()};
+};
+
+class ZeroInitScheme : public InitScheme {
+ public:
+  void init(Tensor& t) override {}
+};
+
+class UniformInitScheme : public InitScheme {
+ public:
+  UniformInitScheme(Float a = -1, Float b = 1) : a_(a), b_(b) {}
+  void init(Tensor& t) override;
+
+ private:
+  Float a_, b_;
+};
+
 class Tensor {
  public:
-  enum class InitScheme {
-    Zero,
-    UniformRandom,
-  };
-
   Tensor(const std::vector<std::vector<Float>>& v);
-  Tensor(Dims dims, InitScheme scheme = InitScheme::Zero);
+  Tensor(Dims dims, InitScheme&& scheme = ZeroInitScheme{});
   Tensor(const ExampleList& es, bool label);
   // Tensor(const std::vector<Tensor> tensors);
 

@@ -131,6 +131,27 @@ class OutputFile {
   int cachedOstreamAccessed_ = 0;
 };
 
+namespace {
+class JsonArrayWriter {
+ public:
+  JsonArrayWriter(string name, ostream& out) : out_(out) {
+    out_ << '"' << name << '"' << ": [";
+  }
+  template <typename T>
+  void write(const T& x) {
+    out_ << sep << x;
+    sep = ", ";
+  }
+  ~JsonArrayWriter() {
+    out_ << "]";
+  }
+
+ private:
+  const char* sep = "";
+  ostream& out_;
+};
+} // namespace
+
 class SGDTrainer {
  public:
   SGDTrainer(
@@ -185,6 +206,7 @@ class SGDTrainer {
       input_->load(batch, false);
       label_->load(batch, true);
       auto g = computeGradient(batch);
+      // Make this a config option
       // verifyGradient(batch, g);
 
       // At this point we have done the forward pass
@@ -220,24 +242,59 @@ class SGDTrainer {
     }
 
     auto& out = learningCurveOutput_.openForAppend();
-    out << iteration << " " << getLossAfterForwardPass().trainingLoss;
 
-    for (auto op : forwardPass_) {
-      if (dynamic_pointer_cast<RegularizerOperator>(op)) {
-        continue;
-      }
-      for (auto* w : op->getParameterList()) {
-        out << " " << w->l2Norm();
+    // Write Json format
+
+    out << "{ ";
+
+    out << folly::format("\"iteration\": {}, ", iteration);
+    out << folly::format(
+        "\"loss\": {}, ", getLossAfterForwardPass().trainingLoss);
+
+    {
+      JsonArrayWriter writer("w.norm", out);
+      for (auto op : forwardPass_) {
+        if (dynamic_pointer_cast<RegularizerOperator>(op)) {
+          continue;
+        }
+        for (auto* w : op->getParameterList()) {
+          writer.write(w->l2Norm());
+        }
       }
     }
 
-    for (auto op : backwardPass_) {
-      for (auto& g : op->parameterGradient()) {
-        out << " " << g.l2Norm();
+    {
+      out << " , ";
+      JsonArrayWriter writer("w.g.norm", out);
+      for (auto op : reverse(backwardPass_)) {
+        for (auto& g : op->parameterGradient()) {
+          writer.write(g.l2Norm());
+        }
       }
     }
 
-    out << endl;
+    {
+      out << " , ";
+      JsonArrayWriter writer("x.g.norm", out);
+      for (auto op : reverse(backwardPass_)) {
+        for (auto& g : op->inputGradient()) {
+          writer.write(g.l2Norm());
+        }
+      }
+    }
+
+    {
+      out << " , ";
+      JsonArrayWriter writer("out.norm", out);
+      for (auto op : forwardPass_) {
+        if (dynamic_pointer_cast<RegularizerOperator>(op)) {
+          continue;
+        }
+        writer.write(op->get().l2Norm());
+      }
+    }
+
+    out << "}" << endl;
   }
 
   void printTotalLoss(int i) {
@@ -348,9 +405,9 @@ class SGDTrainer {
         if (!g[i][j].equals(gDebug[i][j], eps)) {
           cout << folly::format(
               "{} #{} gradient not equal:\n", forwardPass_[i]->name(), j);
-          // cout << "gradient: " << g[i][j] << endl;
-          // cout << "debug gradient: " << gDebug[i][j] << endl;
-          // SCHECK(false);
+          cout << "gradient: " << g[i][j] << endl;
+          cout << "debug gradient: " << gDebug[i][j] << endl;
+          SCHECK(false);
         }
       }
     }
