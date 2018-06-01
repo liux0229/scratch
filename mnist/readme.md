@@ -27,7 +27,6 @@ Work log:
   * [P0] double vs. float: conclusion: we should use double. Why unnecessarily restrict ourselves? 
     * Using double resolves the overflowing problem. 
 * Optimization algorithm improvement:
-  * [P0] Add a regularizer. Operators also have an edge to a regularizer. Another approach is to "inline" compute regularizing cost and regularizer gradient.  
   * [P1] Try AdaGrad on the current optimization problem 
   * [P1] LARS: https://arxiv.org/pdf/1708.03888.pdf
   * [P0] Input normalization
