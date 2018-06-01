@@ -38,10 +38,9 @@ Work log:
     * Gaussian fill for NN weights (may not work because training error was already low).
 * Tooling
   * [P1] Model loading: also prints architecture so can more easily recover from past runs.
+    * Include the arch description in the model output so we know exactly the run that produced the model. 
   * [P2] Config supports reading multiple entries to perform multiple runs.
-  * [P0] Plot loss and parameter norm every N iterations
   * [P0] Learning curve
-    * Intermediate gradient and x norm;
     * [P1] Activation stats 
 
 Notes:
