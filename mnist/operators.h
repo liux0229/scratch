@@ -159,6 +159,20 @@ class InputOperator : public Operator {
 };
 using IInputOperator = std::shared_ptr<InputOperator>;
 
+// Adapts the shape of the input tensor
+class AdapterOperator : public Operator {
+ public:
+  AdapterOperator(Dims outputDims, IOperator input)
+      : Operator(outputDims, {input}) {
+    SCHECK(dimSize(outputDims) == dimSize(input->dims()));
+  }
+
+  Tensor& compute() override {
+    output_ = Tensor(dims(), inputs_[0]->get());
+    return get();
+  }
+};
+
 class FCLayerOperator : public Operator {
  public:
   FCLayerOperator(int width, IOperator input);
@@ -177,6 +191,31 @@ class FCLayerOperator : public Operator {
  private:
   std::function<Tensor*()> getParameters() override;
   GradientPair gradientFunc(BackPropOperator*) override;
+
+  Tensor w_;
+  Tensor b_;
+};
+
+/// Do padding to keep output size the same as input size
+/// It works for both two dimensional and three dimensional inputs
+class ConvolutionLayerOperator : Operator {
+ public:
+  ConvolutionLayerOperator(int channel, int width, IOperator input);
+  std::string name() const override {
+    return "cnn-layer";
+  }
+  Tensor& compute() override;
+
+ private:
+  // So that I may introduce different padding schemes in the future
+  static Dims computeOutputDims(Dims inputDims, int channel, int /* width */) {
+    SCHECK(inputDims.size() == 3)
+    return Dims{channel, inputDims[1], inputDims[2]};
+  }
+
+  static Dims computeWDims(Dims inputDims, int channel, int width) {
+    return Dims{channel, inputDims[0], width, width};
+  }
 
   Tensor w_;
   Tensor b_;

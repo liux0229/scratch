@@ -21,6 +21,14 @@ using Float = double;
 using Dim = int;
 using Dims = std::vector<Dim>;
 
+inline int dimSize(Dims dims) {
+  int s = 1;
+  for (auto x : dims) {
+    s *= x;
+  }
+  return s;
+}
+
 struct Example {
   void normalize();
 

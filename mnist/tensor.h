@@ -39,28 +39,61 @@ class UniformInitScheme : public InitScheme {
 
 class Tensor {
  public:
+  // A view object
+  struct Array {
+    Array(Float* d, int n) : d_(d), n_(n) {}
+
+    Float& operator[](size_t x) {
+      return d_[x];
+    }
+    // Float operator[](size_t x) const {
+    //   return d_[x];
+    // }
+    Float* begin() {
+      return d_;
+    }
+    Float* end() {
+      return d_ + n_;
+    }
+    // const Float* begin() const {
+    //   return d_;
+    // }
+    // const Float* end() const {
+    //   return d_ + n_;
+    // }
+    size_t size() {
+      return n_;
+    }
+
+   private:
+    Float* d_;
+    size_t n_;
+  };
+
   Tensor(const std::vector<std::vector<Float>>& v);
   Tensor(Dims dims, InitScheme&& scheme = ZeroInitScheme{});
   Tensor(const ExampleList& es, bool label);
   // Tensor(const std::vector<Tensor> tensors);
 
+  // Adapts the Tensor to a different shape
+  Tensor(Dims dims, const Tensor& tensor) : dims_(dims), data_(tensor.data_) {
+    SCHECK(dimSize(dims) == tensor.data().size());
+  }
+
   Dim total() const {
-    return data_.size();
+    return data().size();
   }
   Dims dims() const {
     return dims_;
   }
 
-  // Return the raw data
-  std::vector<Float>& data() {
-    return data_;
-  }
-  const std::vector<Float>& data() const {
-    return data_;
+  // TODO: actually respects the constness
+  Array data() const {
+    return Array(data_.get(), dimSize(dims_));
   }
 
-  // Make this more efficient
   Tensor operator[](Dim x) const;
+  Tensor flatten() const;
 
   Float l2Norm() const;
   Float l2Sum() const;
@@ -77,16 +110,21 @@ class Tensor {
   friend void print(std::ostream& out, const Tensor& tensor, std::string tab);
 
  private:
+  Tensor(Dims dims, std::shared_ptr<Float> data) : dims_(dims), data_(data) {}
+
+  void createStorage(int n);
   void loadLabel(const ExampleList& es);
 
   friend class Vector;
   friend class Matrix;
 
   Dims dims_;
-  std::vector<Float> data_;
+  std::shared_ptr<Float> data_;
 };
 
 std::ostream& operator<<(std::ostream&, const Tensor& tensor);
+
+std::ostream& operator<<(std::ostream&, Tensor::Array x);
 
 inline Tensor& operator+=(Tensor& x, const Tensor& y) {
   SCHECK(x.dims() == y.dims());
@@ -111,10 +149,10 @@ class Vector {
     return tensor_->dims_[0];
   }
   Float operator()(Dim i) const {
-    return tensor_->data_[i];
+    return tensor_->data()[i];
   }
   Float& operator()(Dim i) {
-    return tensor_->data_[i];
+    return tensor_->data()[i];
   }
 
  private:
@@ -134,10 +172,10 @@ class Matrix {
     return tensor_->dims_[1];
   }
   Float operator()(Dim i, Dim j) const {
-    return tensor_->data_[i * cols() + j];
+    return tensor_->data()[i * cols() + j];
   }
   Float& operator()(Dim i, Dim j) {
-    return tensor_->data_[i * cols() + j];
+    return tensor_->data()[i * cols() + j];
   }
 
   Tensor rowSum() const;
@@ -167,6 +205,45 @@ class TransposedMatrix {
  private:
   Matrix* m_;
 };
+
+class MatrixPatch {
+ public:
+  MatrixPatch(Matrix& m, Dim ro, Dim co, Dim rows, Dim cols)
+      : m_(&m), ro_(ro), co_(co), rows_(rows), cols_(cols) {}
+  Dim rows() const {
+    return rows_;
+  }
+  Dim cols() const {
+    return cols_;
+  }
+
+  Float operator()(Dim i, Dim j) const {
+    auto r = i + ro_;
+    auto c = j + co_;
+    if (r < 0 || r >= rows_ || c < 0 || c >= cols_) {
+      return 0.0;
+    }
+    return (*m_)(r, c);
+  }
+
+ private:
+  Matrix* m_;
+  Dim ro_;
+  Dim co_;
+  Dim rows_;
+  Dim cols_;
+};
+
+inline Float dot(const MatrixPatch& a, const MatrixPatch& b) {
+  SCHECK(a.rows() == b.rows() && a.cols() == b.cols());
+  Float s = 0;
+  for (Dim i = 0; i < a.rows(); ++i) {
+    for (Dim j = 0; j < a.cols(); ++j) {
+      s += a(i, j) * b(i, j);
+    }
+  }
+  return s;
+}
 
 template <typename T1, typename T2>
 constexpr bool is_same_v = std::is_same<T1, T2>::value;
@@ -261,7 +338,11 @@ Tensor operator*(const MX1& a, const MX2& b) {
 }
 
 Tensor operator+(const Matrix& a, const Matrix& b);
+// Row wise addition
 Tensor operator+(const Matrix& a, const Vector& b);
+Vector& operator+=(Vector& a, const Vector& b);
+
+Tensor convolve(const Tensor& x, const Tensor& w);
 
 using Gradient = std::vector<Tensor>;
 using GradientList = std::vector<Gradient>;

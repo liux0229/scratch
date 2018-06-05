@@ -13,21 +13,28 @@ void UniformInitScheme::init(Tensor& t) {
   }
 }
 
+void Tensor::createStorage(int n) {
+  // Zero-init is required
+  data_ = shared_ptr<Float>{new Float[n], std::default_delete<Float[]>{}};
+  // data_ = shared_ptr<Float>{new Float[n]};
+}
+
 Tensor::Tensor(Dims dims, InitScheme&& scheme) : dims_(dims) {
   int n = 1;
   for (auto d : dims_) {
     n *= d;
   }
-  data_ = vector<Float>(n);
+  createStorage(n);
   scheme.init(*this);
 }
 
 Tensor::Tensor(const vector<vector<Float>>& v) {
   dims_ = Dims{static_cast<int>(v.size()), static_cast<int>(v[0].size())};
-  data_.reserve(dims_[0] * dims_[1]);
+  createStorage(dims_[0] * dims_[1]);
+  int i = 0;
   for (auto& row : v) {
     for (auto c : row) {
-      data_.push_back(c);
+      data()[i++] = c;
     }
   }
 }
@@ -48,12 +55,13 @@ Tensor::Tensor(const ExampleList& es, bool label) {
 
   auto n = es[0].rows * es[0].cols;
   dims_ = Dims{static_cast<Dim>(es.size()), n};
-  data_.reserve(es.size() * n);
+  createStorage(es.size() * n);
 
+  int i = 0;
   for (auto& e : es) {
     for (auto& row : e.image) {
       for (auto c : row) {
-        data_.push_back(c);
+        data()[i++] = c;
       }
     }
   }
@@ -61,10 +69,11 @@ Tensor::Tensor(const ExampleList& es, bool label) {
 
 void Tensor::loadLabel(const ExampleList& es) {
   dims_ = Dims{static_cast<Dim>(es.size())};
-  data_.reserve(es.size());
+  createStorage(es.size());
 
+  int i = 0;
   for (auto& e : es) {
-    data_.push_back(static_cast<double>(e.label));
+    data()[i++] = static_cast<double>(e.label);
   }
 }
 
@@ -92,12 +101,14 @@ Tensor Tensor::operator[](Dim x) const {
   SCHECK(dims_.size() > 1);
   SCHECK(x < dims_[0]);
 
-  Tensor ret{Dims{dims_.begin() + 1, dims_.end()}};
-  copy(
-      data_.begin() + x * ret.total(),
-      data_.begin() + (x + 1) * ret.total(),
-      ret.data_.begin());
-  return ret;
+  Dims dims{dims_.begin() + 1, dims_.end()};
+
+  return Tensor{dims,
+                shared_ptr<Float>{data_, data().begin() + x * dimSize(dims)}};
+}
+
+Tensor Tensor::flatten() const {
+  return Tensor{Dims{dimSize(dims())}, *this};
 }
 
 Float Tensor::l2Norm() const {
@@ -106,7 +117,7 @@ Float Tensor::l2Norm() const {
 
 Float Tensor::l2Sum() const {
   Float squaredSum = 0;
-  for (auto x : data_) {
+  for (auto x : data()) {
     squaredSum += x * x;
   }
   return squaredSum;
@@ -129,7 +140,7 @@ void print(ostream& out, const Tensor& tensor, string tab) {
 
   if (tensor.dims_.size() == 1) {
     out << tab << "\t";
-    for (auto x : tensor.data_) {
+    for (auto x : tensor.data()) {
       out << x << ", ";
     }
     out << endl;
@@ -147,6 +158,16 @@ ostream& operator<<(ostream& out, const Tensor& tensor) {
   return out;
 }
 
+ostream& operator<<(ostream& out, Tensor::Array v) {
+  out << "[ ";
+  for (auto x : v) {
+    out << x << " ";
+  }
+  out << "]";
+
+  return out;
+}
+
 Tensor Tensor::read(std::istream& in) {
   expectToken(in, "{");
 
@@ -158,7 +179,7 @@ Tensor Tensor::read(std::istream& in) {
   in >> x;
 
   SCHECK(ret.data().size() == x.size());
-  ret.data() = x;
+  copy(ret.data().begin(), ret.data().end(), &x[0]);
 
   expectToken(in, "}");
 
@@ -220,6 +241,14 @@ Tensor operator+(const Matrix& a, const Vector& b) {
   return ret;
 }
 
+Vector& operator+=(Vector& a, const Vector& b) {
+  SCHECK(a.n() == b.n());
+  for (int i = 0; i < a.n(); ++i) {
+    a(i) += b(i);
+  }
+  return a;
+}
+
 Tensor Matrix::rowSum() const {
   Tensor ret{Dims{cols()}};
   Vector v{ret};
@@ -228,5 +257,41 @@ Tensor Matrix::rowSum() const {
       v(j) += (*this)(i, j);
     }
   }
+  return ret;
+}
+
+Tensor convolve(const Tensor& x, const Tensor& w) {
+  SCHECK(x.dims().size() == 4);
+  SCHECK(w.dims().size() == 4);
+
+  Tensor ret{Dims{x.dims()[0], w.dims()[0], x.dims()[1], x.dims()[2]}};
+  const Dim R = w.dims()[2];
+  const Dim C = w.dims()[3];
+
+  for (Dim e = 0; e < ret.dims()[0]; ++e) {
+    auto example = ret[e];
+    for (Dim c = 0; c < ret.dims()[1]; ++c) {
+      auto channel = example[c];
+      Matrix out{channel};
+      auto wc = w[c];
+
+      for (Dim k = 0; k < x.dims()[1]; ++k) {
+        auto xk = x[k];
+        Matrix xm{xk};
+
+        auto wck = wc[k];
+        Matrix wm{wck};
+
+        for (Dim i = 0; i < out.rows(); ++i) {
+          for (Dim j = 0; j < out.cols(); ++j) {
+            out(i, j) +=
+                dot(MatrixPatch(xm, i - R / 2, j - C / 2, R, C),
+                    MatrixPatch(wm, 0, 0, R, C));
+          }
+        }
+      }
+    }
+  }
+
   return ret;
 }

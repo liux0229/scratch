@@ -37,7 +37,8 @@ Gradient Operator::computeGradientDebug(const std::function<double()>& loss) {
       // if (dynamic_cast<RegularizerOperator*>(this)) {
       //   if (i == 0) {
       //     cout << "i=" << i << " " << cur << " " << loss1 << " " << loss2
-      //          << " diff: " << (loss1 - loss2) << " g=" << g.data()[i] << endl;
+      //          << " diff: " << (loss1 - loss2) << " g=" << g.data()[i] <<
+      //          endl;
       //   }
       // }
 
@@ -54,7 +55,6 @@ Gradient Operator::computeGradientDebug(const std::function<double()>& loss) {
 FCLayerOperator::FCLayerOperator(int width, IOperator input)
     : Operator({width}, {input}),
       w_(Dims{input->dims()[0], width},
-         // Use 1000 to debug W.r gradient
          UniformInitScheme{-1.0 / (input->dims()[0] + width),
                            1.0 / (input->dims()[0] + width)}),
       b_(Dims{width}, UniformInitScheme{}) {
@@ -155,6 +155,31 @@ void FCLayerOperator::write(std::ostream& out) const {
   Tensor::write(out, w_);
   out << "B = ";
   Tensor::write(out, b_);
+}
+
+ConvolutionLayerOperator::ConvolutionLayerOperator(
+    int channel,
+    int width,
+    IOperator input)
+    : Operator(computeOutputDims(input->dims(), channel, width), {input}),
+      w_(computeWDims(input->dims(), channel, width), UniformInitScheme{}),
+      b_(Dims{channel}, UniformInitScheme{}) {}
+
+Tensor& ConvolutionLayerOperator::compute() {
+  output_ = convolve(inputs_[0]->get(), w_);
+
+  auto& ret = get();
+  Vector bv{b_};
+  for (int i = 0; i < ret.dims()[0]; ++i) {
+    auto example = ret[i];
+    for (int j = 0; j < example.dims()[0]; ++j) {
+      auto channel = example[j].flatten();
+      Vector v{channel};
+      v += bv;
+    }
+  }
+
+  return ret;
 }
 
 ReluOperator::ReluOperator(IOperator input) : Operator(input->dims(), {input}) {
