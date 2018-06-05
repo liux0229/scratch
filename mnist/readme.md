@@ -5,7 +5,7 @@ Work log:
   * [P2] Write more unit tests for Tensor. e.g. operator+. 
   * [P2] Consider adding a diagnostic mechanism (can turn on with a single switch). 
 * [P0] Performance optimizations - so I can train more iterations faster so I can easily tune the algorithm;
-  * [P0] The program becomes extremely slow - only 1 or 2 threads are running.
+  * [P0] The program becomes extremely slow - only 1 or 2 threads are running - seemingly during the initialization phase.
   * [P2] O(n^2.8) matrix multiplication algorithm
   * [P1] Try accessing RHS matrix row wise and measure cache misses. 
   * [P2] Layout matrix in cache friendly ways
