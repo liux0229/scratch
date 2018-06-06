@@ -41,18 +41,22 @@ class Tensor {
  public:
   // A view object
   struct Array {
+    // Array(Float* d, int n, std::vector<Float>* v) : d_(d), n_(n), v_(v) {}
     Array(Float* d, int n) : d_(d), n_(n) {}
 
     Float& operator[](size_t x) {
       return d_[x];
+      // return (*v_)[x];
     }
     // Float operator[](size_t x) const {
     //   return d_[x];
     // }
     Float* begin() {
       return d_;
+      // return &(*v_)[0];
     }
     Float* end() {
+      // return &(*v_)[0] + v_->size();
       return d_ + n_;
     }
     // const Float* begin() const {
@@ -62,12 +66,14 @@ class Tensor {
     //   return d_ + n_;
     // }
     size_t size() {
+      // return v_->size();
       return n_;
     }
 
    private:
     Float* d_;
     size_t n_;
+    std::vector<Float>* v_;
   };
 
   Tensor(const std::vector<std::vector<Float>>& v);
@@ -88,9 +94,17 @@ class Tensor {
   }
 
   // TODO: actually respects the constness
+  // TODO: dimSize() seems slow; need to change Dims to a real object so we can cache the answer
+  // But we should profile it
   Array data() const {
-    return Array(data_.get(), dimSize(dims_));
+    // return Array(data_.get(), dimSize(dims_));
+    return Array(
+        const_cast<Float*>(&data_[0]),
+        dimSize(dims_));
   }
+
+  // const std::vector<Float>& data() const { return data_; }
+  // std::vector<Float>& data() { return data_; }
 
   Tensor operator[](Dim x) const;
   Tensor flatten() const;
@@ -110,16 +124,18 @@ class Tensor {
   friend void print(std::ostream& out, const Tensor& tensor, std::string tab);
 
  private:
-  Tensor(Dims dims, std::shared_ptr<Float> data) : dims_(dims), data_(data) {}
+  // Tensor(Dims dims, std::shared_ptr<Float> data) : dims_(dims), data_(data)
+  // {}
 
-  void createStorage(int n);
+  void createStorage();
   void loadLabel(const ExampleList& es);
 
   friend class Vector;
   friend class Matrix;
 
   Dims dims_;
-  std::shared_ptr<Float> data_;
+  // std::shared_ptr<Float> data_;
+  std::vector<Float> data_;
 };
 
 std::ostream& operator<<(std::ostream&, const Tensor& tensor);

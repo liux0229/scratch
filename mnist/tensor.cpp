@@ -13,24 +13,22 @@ void UniformInitScheme::init(Tensor& t) {
   }
 }
 
-void Tensor::createStorage(int n) {
+void Tensor::createStorage() {
+  int n = dimSize(dims_);
+
   // Zero-init is required
-  data_ = shared_ptr<Float>{new Float[n], std::default_delete<Float[]>{}};
-  // data_ = shared_ptr<Float>{new Float[n]};
+  // data_ = shared_ptr<Float>{new Float[n], std::default_delete<Float[]>{}};
+  data_ = vector<Float>(n);
 }
 
 Tensor::Tensor(Dims dims, InitScheme&& scheme) : dims_(dims) {
-  int n = 1;
-  for (auto d : dims_) {
-    n *= d;
-  }
-  createStorage(n);
+  createStorage();
   scheme.init(*this);
 }
 
 Tensor::Tensor(const vector<vector<Float>>& v) {
   dims_ = Dims{static_cast<int>(v.size()), static_cast<int>(v[0].size())};
-  createStorage(dims_[0] * dims_[1]);
+  createStorage();
   int i = 0;
   for (auto& row : v) {
     for (auto c : row) {
@@ -55,7 +53,7 @@ Tensor::Tensor(const ExampleList& es, bool label) {
 
   auto n = es[0].rows * es[0].cols;
   dims_ = Dims{static_cast<Dim>(es.size()), n};
-  createStorage(es.size() * n);
+  createStorage();
 
   int i = 0;
   for (auto& e : es) {
@@ -69,7 +67,7 @@ Tensor::Tensor(const ExampleList& es, bool label) {
 
 void Tensor::loadLabel(const ExampleList& es) {
   dims_ = Dims{static_cast<Dim>(es.size())};
-  createStorage(es.size());
+  createStorage();
 
   int i = 0;
   for (auto& e : es) {
@@ -101,14 +99,24 @@ Tensor Tensor::operator[](Dim x) const {
   SCHECK(dims_.size() > 1);
   SCHECK(x < dims_[0]);
 
-  Dims dims{dims_.begin() + 1, dims_.end()};
+  // Dims dims{dims_.begin() + 1, dims_.end()};
+  //
+  // return Tensor{dims,
+  //               shared_ptr<Float>{data_, data().begin() + x * dimSize(dims)}};
 
-  return Tensor{dims,
-                shared_ptr<Float>{data_, data().begin() + x * dimSize(dims)}};
+  Tensor ret{Dims{dims_.begin() + 1, dims_.end()}};
+  copy(
+      data().begin() + x * ret.total(),
+      data().begin() + (x + 1) * ret.total(),
+      ret.data().begin());
+  return ret;
 }
 
 Tensor Tensor::flatten() const {
-  return Tensor{Dims{dimSize(dims())}, *this};
+  // return Tensor{Dims{dimSize(dims())}, *this};
+  Tensor ret{Dims{dimSize(dims())}};
+  copy(data().begin(), data().end(), ret.data().begin());
+  return ret;
 }
 
 Float Tensor::l2Norm() const {
@@ -179,7 +187,7 @@ Tensor Tensor::read(std::istream& in) {
   in >> x;
 
   SCHECK(ret.data().size() == x.size());
-  copy(ret.data().begin(), ret.data().end(), &x[0]);
+  copy(x.begin(), x.end(), ret.data().begin());
 
   expectToken(in, "}");
 
