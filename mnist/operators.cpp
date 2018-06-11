@@ -53,7 +53,7 @@ Gradient Operator::computeGradientDebug(const std::function<double()>& loss) {
 // This requires knowing the dimension of the input before building the graph
 // which needs to be changed (because # rows can be changed)
 FCLayerOperator::FCLayerOperator(int width, IOperator input)
-    : Operator({width}, {input}),
+    : Operator(Dims{width}, {input}),
       w_(Dims{input->dims()[0], width},
          UniformInitScheme{-1.0 / (input->dims()[0] + width),
                            1.0 / (input->dims()[0] + width)}),
@@ -306,7 +306,7 @@ GradientPair SoftmaxOperator::gradientFunc(BackPropOperator* op) {
 }
 
 LossOperator::LossOperator(IOperator input, IOperator label)
-    : Operator({}, {input, label}) {
+    : Operator(Dims{}, {input, label}) {
   SCHECK(input->dims().size() == 1);
   SCHECK(label->dims().size() == 0);
 }
@@ -445,7 +445,9 @@ GradientPair L2RegularizerOperator::gradientFunc(BackPropOperator*) {
       //   cout << w->data()[i] << " " << t.data()[i] << endl;
       // }
     }
-    g.push_back(move(t));
+    // FIXME
+    // g.push_back(move(t));
+    g.push_back(t);
   }
   return make_pair(Gradient{}, Gradient{move(g)});
 }

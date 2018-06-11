@@ -17,8 +17,33 @@ void Tensor::createStorage() {
   int n = dimSize(dims_);
 
   // Zero-init is required
-  // data_ = shared_ptr<Float>{new Float[n], std::default_delete<Float[]>{}};
-  data_ = vector<Float>(n);
+  data_ = shared_ptr<Float>{new Float[n](), std::default_delete<Float[]>{}};
+  // data_ = vector<Float>(n);
+}
+
+Tensor::Tensor(const Tensor& t) : dims_(t.dims_) {
+  // A copy is requested. Let's copy content of the Tensor.
+  createStorage();
+  copy(t.data().begin(), t.data().end(), data().begin());
+}
+
+Tensor::Tensor(Tensor&& t) : dims_(t.dims_), data_(std::move(t.data_)) {
+  // So we can catch unintended move
+  t.data_ = nullptr;
+}
+
+Tensor& Tensor::operator=(const Tensor& t) {
+  dims_ = t.dims_;
+  createStorage();
+  copy(t.data().begin(), t.data().end(), data().begin());
+  return *this;
+}
+
+Tensor& Tensor::operator=(Tensor&& t) {
+  dims_ = t.dims_;
+  data_ = move(t.data_);
+  t.data_ = nullptr;
+  return *this;
 }
 
 Tensor::Tensor(Dims dims, InitScheme&& scheme) : dims_(dims) {
@@ -26,15 +51,33 @@ Tensor::Tensor(Dims dims, InitScheme&& scheme) : dims_(dims) {
   scheme.init(*this);
 }
 
-Tensor::Tensor(const vector<vector<Float>>& v) {
-  dims_ = Dims{static_cast<int>(v.size()), static_cast<int>(v[0].size())};
-  createStorage();
-  int i = 0;
-  for (auto& row : v) {
-    for (auto c : row) {
-      data()[i++] = c;
-    }
+Tensor Tensor::from(const vector<Float>& v) {
+  int n = v.size();
+  Tensor ret{Dims{n}};
+  copy(v.begin(), v.end(), ret.data().begin());
+  return ret;
+}
+
+Tensor Tensor::from(const vector<Tensor>& v) {
+  SCHECK(v.size() > 0);
+  for (auto& x : v) {
+    SCHECK(x.dims() == v[0].dims());
   }
+
+  vector<Dim> dims = v[0].dims();
+  dims.insert(dims.begin(), v.size());
+
+  Tensor ret{Dims{dims.begin(), dims.end()}};
+  int i = 0;
+  for (auto& x : v) {
+    std::copy(
+        x.data().begin(),
+        x.data().end(),
+        ret.data().begin() + i * v[0].dims().dimSize);
+    ++i;
+  }
+
+  return ret;
 }
 
 // Produce a two dimensional tensor for now
@@ -99,24 +142,24 @@ Tensor Tensor::operator[](Dim x) const {
   SCHECK(dims_.size() > 1);
   SCHECK(x < dims_[0]);
 
-  // Dims dims{dims_.begin() + 1, dims_.end()};
-  //
-  // return Tensor{dims,
-  //               shared_ptr<Float>{data_, data().begin() + x * dimSize(dims)}};
+  Dims dims{dims_.begin() + 1, dims_.end()};
 
-  Tensor ret{Dims{dims_.begin() + 1, dims_.end()}};
-  copy(
-      data().begin() + x * ret.total(),
-      data().begin() + (x + 1) * ret.total(),
-      ret.data().begin());
-  return ret;
+  return Tensor{dims,
+                shared_ptr<Float>{data_, data().begin() + x * dimSize(dims)}};
+
+  // Tensor ret{Dims{dims_.begin() + 1, dims_.end()}};
+  // copy(
+  //     data().begin() + x * ret.total(),
+  //     data().begin() + (x + 1) * ret.total(),
+  //     ret.data().begin());
+  // return ret;
 }
 
 Tensor Tensor::flatten() const {
-  // return Tensor{Dims{dimSize(dims())}, *this};
-  Tensor ret{Dims{dimSize(dims())}};
-  copy(data().begin(), data().end(), ret.data().begin());
-  return ret;
+  return Tensor{Dims{dimSize(dims())}, *this};
+  // Tensor ret{Dims{dimSize(dims())}};
+  // copy(data().begin(), data().end(), ret.data().begin());
+  // return ret;
 }
 
 Float Tensor::l2Norm() const {
@@ -249,6 +292,17 @@ Tensor operator+(const Matrix& a, const Vector& b) {
   return ret;
 }
 
+Tensor operator+(const Vector& a, const Vector& b) {
+  Tensor ret{Dims{a.n()}};
+  Vector r{ret};
+
+  SCHECK(a.n() == b.n());
+  for (int i = 0; i < a.n(); ++i) {
+    r(i) = a(i) + b(i);
+  }
+  return ret;
+}
+
 Vector& operator+=(Vector& a, const Vector& b) {
   SCHECK(a.n() == b.n());
   for (int i = 0; i < a.n(); ++i) {
@@ -269,6 +323,9 @@ Tensor Matrix::rowSum() const {
 }
 
 Tensor convolve(const Tensor& x, const Tensor& w) {
+  // x: {batch, input channel, row, column}
+  // w: {output channel, input channel, row, column}
+
   SCHECK(x.dims().size() == 4);
   SCHECK(w.dims().size() == 4);
 

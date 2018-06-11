@@ -215,6 +215,7 @@ class SGDTrainer {
       writeLearningCurve(i);
 
       for (size_t k = 0; k < forwardPass_.size(); ++k) {
+        // TODO: look into this copy
         forwardPass_[k]->applyGradient(g[k] * -alpha);
       }
     }
@@ -392,7 +393,10 @@ class SGDTrainer {
     int index = backwardPass_.size() - 1;
     for (auto op : backwardPass_) {
       op->runBackProp();
+
+      // TODO: look into this copy
       gradients[index] = op->parameterGradient();
+
       // if (op->name() == "l2_regularizer_grad") {
       //   cout << "compute gradient: " << gradients[index][0].data()[0] <<
       //   endl;
@@ -414,9 +418,11 @@ class SGDTrainer {
         if (!g[i][j].equals(gDebug[i][j], eps)) {
           cout << folly::format(
               "{} #{} gradient not equal:\n", forwardPass_[i]->name(), j);
-          // cout << "gradient: " << g[i][j] << endl;
-          // cout << "debug gradient: " << gDebug[i][j] << endl;
-          // SCHECK(false);
+          if (trainingConfig_.diagnosticsConfig.gradientVerifyDetails) {
+            cout << "gradient: " << g[i][j] << endl;
+            cout << "debug gradient: " << gDebug[i][j] << endl;
+            SCHECK(false);
+          }
         }
       }
     }

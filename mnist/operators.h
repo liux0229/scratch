@@ -283,7 +283,7 @@ class SoftmaxLossOperator : public Operator {
 
 class RegularizerOperator : public Operator {
  public:
-  RegularizerOperator(Float lambda) : Operator({}, {}), lambda_(lambda){};
+  RegularizerOperator(Float lambda) : Operator(Dims{}, {}), lambda_(lambda){};
   void addParameter(Tensor* w) {
     parameters_.push_back(w);
   }

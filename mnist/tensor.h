@@ -73,18 +73,34 @@ class Tensor {
    private:
     Float* d_;
     size_t n_;
-    std::vector<Float>* v_;
+    // std::vector<Float>* v_;
   };
 
-  Tensor(const std::vector<std::vector<Float>>& v);
+  static Tensor from(const std::vector<Float>& v);
+
+  template <typename T>
+  static Tensor from(const std::vector<T>& v) {
+    std::vector<Tensor> vt;
+    for (auto& x : v) {
+      vt.push_back(Tensor::from(x));
+    }
+    return from(vt);
+  }
+
+  static Tensor from(const std::vector<Tensor>& v);
+
   Tensor(Dims dims, InitScheme&& scheme = ZeroInitScheme{});
   Tensor(const ExampleList& es, bool label);
-  // Tensor(const std::vector<Tensor> tensors);
 
   // Adapts the Tensor to a different shape
   Tensor(Dims dims, const Tensor& tensor) : dims_(dims), data_(tensor.data_) {
     SCHECK(dimSize(dims) == tensor.data().size());
   }
+
+  Tensor(const Tensor&);
+  Tensor(Tensor&&);
+  Tensor& operator=(const Tensor&);
+  Tensor& operator=(Tensor&&);
 
   Dim total() const {
     return data().size();
@@ -94,13 +110,17 @@ class Tensor {
   }
 
   // TODO: actually respects the constness
-  // TODO: dimSize() seems slow; need to change Dims to a real object so we can cache the answer
-  // But we should profile it
+  // TODO: dimSize() seems slow; need to change Dims to a real object so we can
+  // cache the answer But we should profile it
   Array data() const {
-    // return Array(data_.get(), dimSize(dims_));
-    return Array(
-        const_cast<Float*>(&data_[0]),
-        dimSize(dims_));
+    return Array(data_.get(), dimSize(dims_));
+    // return Array(
+    //     const_cast<Float*>(&data_[0]),
+    //     dimSize(dims_));
+    // SCHECK(dimSize(dims_) == data_.size());
+    // return Array(
+    //     const_cast<Float*>(&data_[0]),
+    //     data_.size());
   }
 
   // const std::vector<Float>& data() const { return data_; }
@@ -113,7 +133,13 @@ class Tensor {
   Float l2Sum() const;
 
   bool operator==(const Tensor& other) const {
-    return std::tie(dims_, data_) == std::tie(other.dims_, other.data_);
+    if (dims_ != other.dims_) {
+      return false;
+    }
+    if (!std::equal(data().begin(), data().end(), other.data().begin())) {
+      return false;
+    }
+    return true;
   }
 
   bool equals(const Tensor& other, double eps) const;
@@ -124,8 +150,7 @@ class Tensor {
   friend void print(std::ostream& out, const Tensor& tensor, std::string tab);
 
  private:
-  // Tensor(Dims dims, std::shared_ptr<Float> data) : dims_(dims), data_(data)
-  // {}
+  Tensor(Dims dims, std::shared_ptr<Float> data) : dims_(dims), data_(data) {}
 
   void createStorage();
   void loadLabel(const ExampleList& es);
@@ -134,8 +159,8 @@ class Tensor {
   friend class Matrix;
 
   Dims dims_;
-  // std::shared_ptr<Float> data_;
-  std::vector<Float> data_;
+  std::shared_ptr<Float> data_;
+  // std::vector<Float> data_;
 };
 
 std::ostream& operator<<(std::ostream&, const Tensor& tensor);
@@ -346,16 +371,19 @@ Tensor operator*(const MX1& a, const MX2& b) {
       for (int k = 0; k < a.cols(); k++) {
         m(i, j) += a(i, k) * b(k, j);
       }
+      // std::cout << i << "," << j << "=" << m(i, j) << std::endl;
     }
   }
 #endif
 
+  // std::cout << ret << std::endl;
   return ret;
 }
 
 Tensor operator+(const Matrix& a, const Matrix& b);
 // Row wise addition
 Tensor operator+(const Matrix& a, const Vector& b);
+Tensor operator+(const Vector& a, const Vector& b);
 Vector& operator+=(Vector& a, const Vector& b);
 
 Tensor convolve(const Tensor& x, const Tensor& w);

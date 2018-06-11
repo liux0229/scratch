@@ -51,6 +51,7 @@ struct DiagnosticsConfig {
   int lossIterations = 1000;
   int testErrorIterations = 5000;
   bool verifyGradient = false;
+  bool gradientVerifyDetails = false;
   LearningCurveConfig learningCurveConfig;
 };
 

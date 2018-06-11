@@ -19,14 +19,31 @@ const int N_CLASS = 10;
 using Float = double;
 
 using Dim = int;
-using Dims = std::vector<Dim>;
 
-inline int dimSize(Dims dims) {
-  int s = 1;
-  for (auto x : dims) {
-    s *= x;
+struct Dims : std::vector<Dim> {
+  explicit Dims() {}
+
+  explicit Dims(std::initializer_list<Dim> dims) : std::vector<Dim>(dims) {
+    computeDimSize();
   }
-  return s;
+
+  template <class InputIt>
+  Dims(InputIt first, InputIt last) : std::vector<Dim>(first, last) {
+    computeDimSize();
+  }
+
+  void computeDimSize() {
+    dimSize = 1;
+    for (auto x : *this) {
+      dimSize *= x;
+    }
+  }
+
+  Dim dimSize = 0;
+};
+
+inline int dimSize(const Dims& dims) {
+  return dims.dimSize;
 }
 
 struct Example {
