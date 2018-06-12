@@ -170,6 +170,7 @@ Tensor& ConvolutionLayerOperator::compute() {
 
   auto& ret = get();
   Vector bv{b_};
+  // TODO: iterator view
   for (int i = 0; i < ret.dims()[0]; ++i) {
     auto example = ret[i];
     for (int j = 0; j < example.dims()[0]; ++j) {
@@ -182,19 +183,55 @@ Tensor& ConvolutionLayerOperator::compute() {
   return ret;
 }
 
+PoolingOperator::PoolingOperator(int width, int stride, IOperator input)
+    : Operator(computeOutputDims(input->dims(), width, stride), {input}),
+      width_(width),
+      stride_(stride) {}
+
+Tensor& PoolingOperator::compute() {
+  auto& x = inputs_[0]->get();
+  auto d = dims();
+  d.insert(d.begin(), x.dims()[0]);
+  output_ = Tensor{d};
+  auto& ret = get();
+
+  SCHECK(ret.dims()[0] == x.dims()[0] && ret.dims()[1] == x.dims()[1]);
+
+  for (int e = 0; e < x.dims()[0]; e++) {
+    auto xe = x[e];
+    auto re = ret[e];
+    for (int channel = 0; channel < x.dims()[1]; ++channel) {
+      auto xc = xe[channel];
+      auto rc = re[channel];
+      Matrix xm{xc};
+      Matrix rm{rc};
+
+      // TODO: make it symmetric. But finish the gradient for the current form
+      // first
+      for (int r = 0, i = 0; r < xm.rows(); r += stride_, ++i) {
+        for (int c = 0, j = 0; c < xm.cols(); c += stride_, ++j) {
+          rm(i, j) = MatrixPatch{xm, r, c, width_, width_}.max();
+        }
+      }
+    }
+  }
+
+  return ret;
+}
+
 ReluOperator::ReluOperator(IOperator input) : Operator(input->dims(), {input}) {
-  SCHECK(input->dims().size() == 1);
+  SCHECK(input->dims().size() >= 1);
 }
 
 Tensor& ReluOperator::compute() {
   output_ = inputs_[0]->get();
-  Matrix m{get()};
-  for (int i = 0; i < m.rows(); ++i) {
-    for (int j = 0; j < m.cols(); ++j) {
-      m(i, j) = m(i, j) > 0 ? m(i, j) : 0;
+  auto& ret = get();
+  for (auto& x : ret.data()) {
+    if (x < 0) {
+      x = 0;
     }
   }
-  return get();
+  return ret;
 }
 
 GradientPair ReluOperator::gradientFunc(BackPropOperator* op) {

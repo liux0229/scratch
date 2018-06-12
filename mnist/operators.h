@@ -177,6 +177,7 @@ class FCLayerOperator : public Operator {
  public:
   FCLayerOperator(int width, IOperator input);
   std::string name() const override {
+    // TODO: add more information
     return "fc-layer";
   }
   Tensor& compute() override;
@@ -197,11 +198,11 @@ class FCLayerOperator : public Operator {
 };
 
 /// Do padding to keep output size the same as input size
-/// It works for both two dimensional and three dimensional inputs
-class ConvolutionLayerOperator : Operator {
+class ConvolutionLayerOperator : public Operator {
  public:
   ConvolutionLayerOperator(int channel, int width, IOperator input);
   std::string name() const override {
+    // TODO: add more information
     return "cnn-layer";
   }
   Tensor& compute() override;
@@ -219,6 +220,33 @@ class ConvolutionLayerOperator : Operator {
 
   Tensor w_;
   Tensor b_;
+};
+
+// TODO: build a CNN network based on config, using adapters
+// We should build a network manually without configs, then make it configurable
+class PoolingOperator : public Operator {
+ public:
+  PoolingOperator(int width, int stride, IOperator input);
+  std::string name() const override {
+    // TODO: add pooling method
+    return "pooling-layer";
+  }
+  Tensor& compute() override;
+
+ private:
+  static Dim roundUp(Dim x, Dim y) {
+    return (x + y - 1) / y;
+  }
+
+  static Dims computeOutputDims(Dims inputDims, int width, int stride) {
+    SCHECK(inputDims.size() == 3);
+    return Dims{inputDims[0],
+                roundUp(inputDims[1], stride),
+                roundUp(inputDims[2], stride)};
+  }
+
+  int width_;
+  int stride_;
 };
 
 class ReluOperator : public Operator {

@@ -329,19 +329,22 @@ Tensor convolve(const Tensor& x, const Tensor& w) {
   SCHECK(x.dims().size() == 4);
   SCHECK(w.dims().size() == 4);
 
-  Tensor ret{Dims{x.dims()[0], w.dims()[0], x.dims()[1], x.dims()[2]}};
+  Tensor ret{Dims{x.dims()[0], w.dims()[0], x.dims()[2], x.dims()[3]}};
   const Dim R = w.dims()[2];
   const Dim C = w.dims()[3];
 
   for (Dim e = 0; e < ret.dims()[0]; ++e) {
     auto example = ret[e];
+    auto xe = x[e];
+
     for (Dim c = 0; c < ret.dims()[1]; ++c) {
       auto channel = example[c];
       Matrix out{channel};
       auto wc = w[c];
 
       for (Dim k = 0; k < x.dims()[1]; ++k) {
-        auto xk = x[k];
+        // cout << "input dim: " << k << endl;
+        auto xk = xe[k];
         Matrix xm{xk};
 
         auto wck = wc[k];

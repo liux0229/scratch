@@ -110,7 +110,7 @@ TEST(TensorTest, convolve) {
           // R1
           {0, 0, 0, 0},
           // R2
-          {4, 6, 9, 7},
+          {3, 6, 9, 7},
           // R3
           {11, 18, 21, 15},
           // R4
@@ -119,7 +119,7 @@ TEST(TensorTest, convolve) {
       // O2
       {
           // R1
-          {4, 6, 9, 7},
+          {3, 6, 9, 7},
           // R2
           {11, 18, 21, 15},
           // R3
@@ -142,4 +142,74 @@ TEST(TensorTest, convolve) {
   r = Tensor::from({r, r * 10, r * 100});
 
   ASSERT_EQ(r, convolve(x, w));
+}
+
+// Mimic the +b operator in CNN
+TEST(TensorTest, flatten2) {
+  auto a = Tensor::from(VVVV{
+    // 0
+    {
+      // 0.0
+      {
+        {1, 2},
+        {3, 4},
+      },
+      // 0.1
+      {
+        {5, 6},
+        {7, 8},
+      },
+    },
+    // 1
+    {
+      // 1.0
+      {
+        {-1, -2},
+        {-3, -4},
+      },
+      // 1.1
+      {
+        {-5, -6},
+        {-7, -8},
+      },
+    },
+  });
+  auto b = a[1];
+  auto c = b[1];
+  auto d = c.flatten();
+  Vector dv{d};
+
+  auto e = Tensor::from({5, 6, 7, 8});
+  dv += Vector{e};
+
+  auto f = Tensor::from(VVVV{
+    // 0
+    {
+      // 0.0
+      {
+        {1, 2},
+        {3, 4},
+      },
+      // 0.1
+      {
+        {5, 6},
+        {7, 8},
+      },
+    },
+    // 1
+    {
+      // 1.0
+      {
+        {-1, -2},
+        {-3, -4},
+      },
+      // 1.1
+      {
+        {0, 0},
+        {0, 0},
+      },
+    },
+  });
+
+  ASSERT_EQ(f, a);
 }

@@ -2,6 +2,7 @@
 
 #include <folly/futures/Promise.h>
 #include <atomic>
+#include <limits>
 #include <random>
 
 struct Example;
@@ -258,13 +259,26 @@ class MatrixPatch {
     return cols_;
   }
 
+  // TODO: make the range checks optional
   Float operator()(Dim i, Dim j) const {
+    SCHECK(i >= 0 && i < rows_ && j >= 0 && j < cols_);
+
     auto r = i + ro_;
     auto c = j + co_;
-    if (r < 0 || r >= rows_ || c < 0 || c >= cols_) {
+    if (r < 0 || r >= m_->rows() || c < 0 || c >= m_->cols()) {
       return 0.0;
     }
     return (*m_)(r, c);
+  }
+
+  Float max() const {
+    auto ret = std::numeric_limits<Float>::min();
+    for (int i = 0; i < rows(); ++i) {
+      for (int j = 0; j < cols(); ++j) {
+        ret = std::max(ret, (*this)(i, j));
+      }
+    }
+    return ret;
   }
 
  private:
@@ -275,14 +289,32 @@ class MatrixPatch {
   Dim cols_;
 };
 
+inline std::ostream& operator<<(std::ostream& out, const MatrixPatch& m) {
+  out << "[";
+  for (int r = 0; r < m.rows(); ++r) {
+    for (int c = 0; c < m.cols(); ++c) {
+      out << " " << m(r, c);
+    }
+    out << ";";
+  }
+  out << "]";
+
+  return out;
+}
+
 inline Float dot(const MatrixPatch& a, const MatrixPatch& b) {
   SCHECK(a.rows() == b.rows() && a.cols() == b.cols());
+  // std::cout << "dot " << a << " . " << b << ": ";
   Float s = 0;
   for (Dim i = 0; i < a.rows(); ++i) {
     for (Dim j = 0; j < a.cols(); ++j) {
+      if (a(i, j) * b(i, j) != 0) {
+        // std::cout << " + " << a(i, j) * b(i, j);
+      }
       s += a(i, j) * b(i, j);
     }
   }
+  std::cout << std::endl;
   return s;
 }
 
