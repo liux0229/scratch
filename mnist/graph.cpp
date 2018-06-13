@@ -55,15 +55,17 @@ OperatorList GraphBuilder::topologicalSort(IOperator input, IOperator output) {
 }
 
 // static
-pair<IInputOperator, IOperator>
-GraphBuilder::buildMLP(Dim inputDim, int nclass, Dims hiddenLayerDims) {
+pair<IInputOperator, IOperator> GraphBuilder::buildMLP(
+    Dim inputDim,
+    int nclass,
+    const ModelArchitecture& arch) {
   auto input = make_shared<InputOperator>(Dims{inputDim});
   IOperator op = input;
 
-  for (auto dim : hiddenLayerDims) {
-    op = make_shared<FCLayerOperator>(dim, op);
-    op = make_shared<ReluOperator>(op);
+  for (auto layer : arch.layers) {
+    op = layer->create(op);
   }
+
   op = make_shared<FCLayerOperator>(nclass, op);
   op = make_shared<SoftmaxOperator>(op);
 

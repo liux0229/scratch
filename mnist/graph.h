@@ -1,5 +1,6 @@
 #pragma once
 
+#include "TrainingConfig.h"
 #include "operators.h"
 
 class GraphBuilder {
@@ -7,5 +8,5 @@ class GraphBuilder {
   static OperatorList topologicalSort(IOperator output, IOperator input);
   // return <input, output>
   static std::pair<IInputOperator, IOperator>
-  buildMLP(Dim inputDim, int nclass, Dims hiddenLayerDims);
+  buildMLP(Dim inputDim, int nclass, const ModelArchitecture& arch);
 };

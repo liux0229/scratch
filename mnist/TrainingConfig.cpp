@@ -7,8 +7,11 @@ using namespace std;
 using namespace folly;
 
 ostream& operator<<(ostream& out, const ModelArchitecture& modelArch) {
-  out << "model arch: "
-      << "FC " << modelArch.fcLayer.hiddenLayerDims;
+  out << "model arch:";
+  for (auto layer : modelArch.layers) {
+    out << " ";
+    layer->output(out);
+  }
   return out;
 }
 
@@ -94,9 +97,19 @@ TrainingDataConfig TrainingDataConfig::read(istream& in) {
   return parseConfig(in, processors);
 }
 
+namespace {
+template <typename T>
+shared_ptr<T> MS(const T& x) {
+  return make_shared<T>(x);
+}
+} // namespace
+
 ModelArchitecture ModelArchitecture::read(istream& in) {
   Processors<ModelArchitecture> processors{
-      {"fcLayer", OP(config.fcLayer = FullyConnectedLayer::read(in);)},
+      {"fcLayer",
+       OP(config.layers.push_back(MS(FullyConnectedLayer::read(in)));)},
+      {"cnnLayer", OP(config.layers.push_back(MS(CNNLayer::read(in)));)},
+      {"poolLayer", OP(config.layers.push_back(MS(PoolLayer::read(in)));)},
       {"readModelFrom", OP(config.readModelFrom = readString(in);)},
   };
   return parseConfig(in, processors);
@@ -125,6 +138,55 @@ FullyConnectedLayer FullyConnectedLayer::read(istream& in) {
       {"hiddenLayerDims", OP(config.hiddenLayerDims = readDims(in);)},
   };
   return parseConfig(in, processors);
+}
+
+IOperator FullyConnectedLayer::create(IOperator op) const {
+  if (op->dims().size() > 1) {
+    op = make_shared<AdapterOperator>(Dims{op->dims().dimSize}, op);
+  }
+
+  for (auto dim : hiddenLayerDims) {
+    op = make_shared<FCLayerOperator>(dim, op);
+    op = make_shared<ReluOperator>(op);
+  }
+  return op;
+}
+
+CNNLayer CNNLayer::read(istream& in) {
+  Processors<CNNLayer> processors{
+      {"width", OP(config.width = expect<int>(in);)},
+      {"channel", OP(config.channel = expect<int>(in);)},
+  };
+  return parseConfig(in, processors);
+}
+
+IOperator CNNLayer::create(IOperator op) const {
+  auto dims = op->dims();
+  if (dims.size() != 3) {
+    SCHECK(dims.size() == 1);
+    auto n = dims[0];
+    // TODO: more generic
+    SCHECK(N_IMAGE * N_IMAGE == n);
+    dims = Dims{1, n / N_IMAGE, n / N_IMAGE};
+    op = make_shared<AdapterOperator>(dims, op);
+  }
+
+  op = make_shared<ConvolutionLayerOperator>(channel, width, op);
+  op = make_shared<ReluOperator>(op);
+
+  return op;
+}
+
+PoolLayer PoolLayer::read(istream& in) {
+  Processors<PoolLayer> processors{
+      {"width", OP(config.width = expect<int>(in);)},
+      {"stride", OP(config.stride = expect<int>(in);)},
+  };
+  return parseConfig(in, processors);
+}
+
+IOperator PoolLayer::create(IOperator op) const {
+  return make_shared<PoolingOperator>(width, stride, op);
 }
 
 LearningRateStrategy LearningRateStrategy::read(istream& in) {

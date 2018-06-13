@@ -1,17 +1,57 @@
 #pragma once
 
 #include "common.h"
+#include "operators.h"
 
-struct FullyConnectedLayer {
+struct ModelLayer {
+  virtual ~ModelLayer() {}
+  virtual IOperator create(IOperator input) const = 0;
+  virtual void output(std::ostream& out) const = 0;
+};
+using IModelLayer = std::shared_ptr<ModelLayer>;
+
+struct FullyConnectedLayer : ModelLayer {
   static FullyConnectedLayer read(std::istream& in);
 
+  IOperator create(IOperator op) const override;
+
+  void output(std::ostream& out) const {
+    out << "FC " << hiddenLayerDims;
+  }
+
   Dims hiddenLayerDims;
+};
+
+struct CNNLayer : ModelLayer {
+  static CNNLayer read(std::istream& in);
+
+  IOperator create(IOperator op) const override;
+
+  void output(std::ostream& out) const {
+    out << "CNN " << channel << "," << width;
+  }
+
+  int channel;
+  int width;
+};
+
+struct PoolLayer : ModelLayer {
+  static PoolLayer read(std::istream& in);
+
+  IOperator create(IOperator op) const override;
+
+  void output(std::ostream& out) const {
+    out << "Pool " << width << "," << stride;
+  }
+
+  int width;
+  int stride;
 };
 
 struct ModelArchitecture {
   static ModelArchitecture read(std::istream& in);
 
-  FullyConnectedLayer fcLayer;
+  std::vector<IModelLayer> layers;
   std::string readModelFrom;
 };
 

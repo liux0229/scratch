@@ -139,11 +139,27 @@ class BackPropOperator {
 };
 using BackPropOperatorList = std::vector<IBackPropOperator>;
 
+class NameMaker {
+ public:
+  template <typename T>
+  NameMaker& operator<<(const T& x) {
+    out << x;
+    return *this;
+  }
+
+  operator std::string() const {
+    return out.str();
+  }
+
+ private:
+  std::ostringstream out;
+};
+
 class InputOperator : public Operator {
  public:
   InputOperator(Dims inputDims) : Operator(inputDims, {}) {}
   std::string name() const override {
-    return "input";
+    return NameMaker{} << "input " << dims();
   }
   void load(const ExampleList& examples, bool label = false) {
     output_ = Tensor{examples, label};
@@ -167,9 +183,18 @@ class AdapterOperator : public Operator {
     SCHECK(dimSize(outputDims) == dimSize(input->dims()));
   }
 
+  std::string name() const override {
+    return NameMaker{} << "adapter " << dims();
+  }
+
   Tensor& compute() override {
     output_ = Tensor(dims(), inputs_[0]->get());
     return get();
+  }
+
+ private:
+  GradientPair gradientFunc(BackPropOperator*) override {
+    return GradientPair{};
   }
 };
 
@@ -177,8 +202,7 @@ class FCLayerOperator : public Operator {
  public:
   FCLayerOperator(int width, IOperator input);
   std::string name() const override {
-    // TODO: add more information
-    return "fc-layer";
+    return NameMaker{} << "fc-layer " << dims();
   }
   Tensor& compute() override;
 
@@ -202,8 +226,7 @@ class ConvolutionLayerOperator : public Operator {
  public:
   ConvolutionLayerOperator(int channel, int width, IOperator input);
   std::string name() const override {
-    // TODO: add more information
-    return "cnn-layer";
+    return NameMaker{} << "cnn-layer " << dims();
   }
   Tensor& compute() override;
 
@@ -218,18 +241,21 @@ class ConvolutionLayerOperator : public Operator {
     return Dims{channel, inputDims[0], width, width};
   }
 
+  GradientPair gradientFunc(BackPropOperator*) override {
+    return GradientPair{};
+  }
+
   Tensor w_;
   Tensor b_;
 };
 
-// TODO: build a CNN network based on config, using adapters
-// We should build a network manually without configs, then make it configurable
 class PoolingOperator : public Operator {
  public:
+  // TODO: verify size
   PoolingOperator(int width, int stride, IOperator input);
   std::string name() const override {
-    // TODO: add pooling method
-    return "pooling-layer";
+    return NameMaker{} << "pooling-layer " << dims() << " w:" << width_
+                       << ";s:" << stride_;
   }
   Tensor& compute() override;
 
@@ -243,6 +269,10 @@ class PoolingOperator : public Operator {
     return Dims{inputDims[0],
                 roundUp(inputDims[1], stride),
                 roundUp(inputDims[2], stride)};
+  }
+
+  GradientPair gradientFunc(BackPropOperator*) override {
+    return GradientPair{};
   }
 
   int width_;

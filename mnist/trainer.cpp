@@ -178,6 +178,9 @@ class SGDTrainer {
         dynamic_pointer_cast<SoftmaxOperator>(output_), lossOp);
 
     forwardPass_ = GraphBuilder::topologicalSort(input_, lossOp_);
+    for (auto op : forwardPass_) {
+      cout << op->name() << endl;
+    }
 
     if (trainingConfig_.modelArch.readModelFrom == "") {
       trainInternal();
@@ -470,9 +473,7 @@ IModel Trainer::train(
   cout << trainingConfig << endl;
 
   auto ops = GraphBuilder::buildMLP(
-      Tensor{examples, false}.dims()[1],
-      10,
-      trainingConfig.modelArch.fcLayer.hiddenLayerDims);
+      Tensor{examples, false}.dims()[1], 10, trainingConfig.modelArch);
   ops = SGDTrainer(ops.first, ops.second, examples, trainingConfig, evaluator)
             .train();
 
