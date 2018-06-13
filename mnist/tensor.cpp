@@ -311,6 +311,13 @@ Vector& operator+=(Vector& a, const Vector& b) {
   return a;
 }
 
+Vector& operator+=(Vector& a, Float x) {
+  for (int i = 0; i < a.n(); ++i) {
+    a(i) += x;
+  }
+  return a;
+}
+
 Tensor Matrix::rowSum() const {
   Tensor ret{Dims{cols()}};
   Vector v{ret};

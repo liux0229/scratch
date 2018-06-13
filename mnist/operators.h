@@ -188,7 +188,8 @@ class AdapterOperator : public Operator {
   }
 
   Tensor& compute() override {
-    output_ = Tensor(dims(), inputs_[0]->get());
+    output_ =
+        Tensor(dims().addFront(inputs_[0]->get().dims()[0]), inputs_[0]->get());
     return get();
   }
 

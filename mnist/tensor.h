@@ -95,6 +95,7 @@ class Tensor {
 
   // Adapts the Tensor to a different shape
   Tensor(Dims dims, const Tensor& tensor) : dims_(dims), data_(tensor.data_) {
+    // std::cout << dims << " " << tensor.data().size() << std::endl;
     SCHECK(dimSize(dims) == tensor.data().size());
   }
 
@@ -314,7 +315,7 @@ inline Float dot(const MatrixPatch& a, const MatrixPatch& b) {
       s += a(i, j) * b(i, j);
     }
   }
-  std::cout << std::endl;
+  // std::cout << std::endl;
   return s;
 }
 
@@ -417,6 +418,7 @@ Tensor operator+(const Matrix& a, const Matrix& b);
 Tensor operator+(const Matrix& a, const Vector& b);
 Tensor operator+(const Vector& a, const Vector& b);
 Vector& operator+=(Vector& a, const Vector& b);
+Vector& operator+=(Vector& a, Float x);
 
 Tensor convolve(const Tensor& x, const Tensor& w);
 

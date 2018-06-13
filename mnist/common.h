@@ -21,14 +21,20 @@ using Float = double;
 using Dim = int;
 
 struct Dims : std::vector<Dim> {
+  using Base = std::vector<Dim>;
+
   explicit Dims() {}
 
-  explicit Dims(std::initializer_list<Dim> dims) : std::vector<Dim>(dims) {
+  explicit Dims(std::initializer_list<Dim> dims) : Base(dims) {
     computeDimSize();
   }
 
   template <class InputIt>
-  Dims(InputIt first, InputIt last) : std::vector<Dim>(first, last) {
+  Dims(InputIt first, InputIt last) : Base(first, last) {
+    computeDimSize();
+  }
+
+  Dims(std::vector<Dim>&& d) : Base(std::move(d)) {
     computeDimSize();
   }
 
@@ -39,7 +45,16 @@ struct Dims : std::vector<Dim> {
     }
   }
 
+  Dims addFront(Dim x) const {
+    Base dims{x};
+    dims.insert(dims.end(), begin(), end());
+    return Dims{std::move(dims)};
+  }
+
   Dim dimSize = 0;
+
+ private:
+  using Base::insert;
 };
 
 inline int dimSize(const Dims& dims) {

@@ -176,7 +176,8 @@ Tensor& ConvolutionLayerOperator::compute() {
     for (int j = 0; j < example.dims()[0]; ++j) {
       auto channel = example[j].flatten();
       Vector v{channel};
-      v += bv;
+      // cout << v.n() << " vs " << bv.n() << endl;
+      v += bv(j);
     }
   }
 
@@ -190,8 +191,7 @@ PoolingOperator::PoolingOperator(int width, int stride, IOperator input)
 
 Tensor& PoolingOperator::compute() {
   auto& x = inputs_[0]->get();
-  auto d = dims();
-  d.insert(d.begin(), x.dims()[0]);
+  auto d = dims().addFront(x.dims()[0]);
   output_ = Tensor{d};
   auto& ret = get();
 

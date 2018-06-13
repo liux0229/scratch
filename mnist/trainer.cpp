@@ -202,6 +202,7 @@ class SGDTrainer {
     int exampleIndex = 0;
 
     for (int i = 0; i < trainingConfig_.iterations; ++i) {
+      cout << "i=" << i << endl;
       printTotalLoss(i);
       printEvaluationResult(i);
 
@@ -369,9 +370,12 @@ class SGDTrainer {
   }
 
   Loss computeLoss() const {
+    cout << "compute loss" << endl;
     for (auto op : forwardPass_) {
+      cout << "eval " << op->name() << endl;
       op->compute();
     }
+    cout << "forward pass" << endl;
     return getLossAfterForwardPass();
   }
 
