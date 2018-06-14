@@ -19,11 +19,11 @@ Work log:
     * This is because each term from the M batch can have their own gradients, which are then summed together.
     * Implementation ideas include thread local or explicit thread (sub-batch) only state. We should aim for simplicity - execution structure should be hidden from the expression structure.  
 * Model architecture
-  * 2D pooling 
+  * CNN 
     * Multi-channel pooling (e.g. invariant to rotations)
+    * Out of boundary pixel values: does the choice of default value matter?
   * Different families of ReLu
     * DReLu: https://openreview.net/forum?id=H1DGha1CZ
-  * Print cases where we make largest mistakes. 
 * Numeric stability
   * Overflow problem: can gradient be a very large number (e.g. would capping gradient computation, e.g. matrix multiplication, still be correct?)
     * Can be diagnosed by printing gradient norm / parameter norm. So far there are no problems. 
