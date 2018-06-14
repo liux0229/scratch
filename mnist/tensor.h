@@ -267,19 +267,26 @@ class MatrixPatch {
     auto r = i + ro_;
     auto c = j + co_;
     if (r < 0 || r >= m_->rows() || c < 0 || c >= m_->cols()) {
+      // TODO: consider returning the minimum of the whole image
       return 0.0;
     }
     return (*m_)(r, c);
   }
 
-  Float max() const {
+  std::tuple<Float, int, int> max() const {
     auto ret = std::numeric_limits<Float>::min();
+    int maxI = -1, maxJ = -1;
     for (int i = 0; i < rows(); ++i) {
       for (int j = 0; j < cols(); ++j) {
-        ret = std::max(ret, (*this)(i, j));
+        auto cur = (*this)(i, j);
+        if (cur > ret) {
+          ret = cur;
+          maxI = i;
+          maxJ = j;
+        }
       }
     }
-    return ret;
+    return std::make_tuple(ret, maxI + ro_, maxJ + co_);
   }
 
  private:

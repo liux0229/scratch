@@ -194,9 +194,7 @@ class AdapterOperator : public Operator {
   }
 
  private:
-  GradientPair gradientFunc(BackPropOperator*) override {
-    return GradientPair{};
-  }
+  GradientPair gradientFunc(BackPropOperator*) override;
 };
 
 class FCLayerOperator : public Operator {
@@ -230,6 +228,7 @@ class ConvolutionLayerOperator : public Operator {
     return NameMaker{} << "cnn-layer " << dims();
   }
   Tensor& compute() override;
+  void applyGradient(const Gradient& g) override;
 
  private:
   // So that I may introduce different padding schemes in the future
@@ -242,9 +241,9 @@ class ConvolutionLayerOperator : public Operator {
     return Dims{channel, inputDims[0], width, width};
   }
 
-  GradientPair gradientFunc(BackPropOperator*) override {
-    return GradientPair{};
-  }
+  GradientPair gradientFunc(BackPropOperator*) override;
+
+  std::function<Tensor*()> getParameters() override;
 
   Tensor w_;
   Tensor b_;
@@ -272,9 +271,7 @@ class PoolingOperator : public Operator {
                 roundUp(inputDims[2], stride)};
   }
 
-  GradientPair gradientFunc(BackPropOperator*) override {
-    return GradientPair{};
-  }
+  GradientPair gradientFunc(BackPropOperator*) override;
 
   int width_;
   int stride_;

@@ -157,6 +157,15 @@ void FCLayerOperator::write(std::ostream& out) const {
   Tensor::write(out, b_);
 }
 
+GradientPair AdapterOperator::gradientFunc(BackPropOperator* op) {
+  auto& parents = op->parents();
+  SCHECK(parents.size() == 1);
+
+  auto& parentG = parents[0].op->inputGradient()[parents[0].inputIndex];
+  Tensor g{inputs_[0]->dims().addFront(parentG.dims()[0]), parentG};
+  return make_pair(Gradient{move(g)}, Gradient{});
+}
+
 ConvolutionLayerOperator::ConvolutionLayerOperator(
     int channel,
     int width,
@@ -182,6 +191,36 @@ Tensor& ConvolutionLayerOperator::compute() {
   }
 
   return ret;
+}
+
+void ConvolutionLayerOperator::applyGradient(const Gradient& g) {
+  SCHECK(g.size() == 2);
+
+  // TODO: print diagnostics
+
+  w_ += g[0];
+  b_ += g[1];
+}
+
+std::function<Tensor*()> ConvolutionLayerOperator::getParameters() {
+  int state = 0;
+  return [this, state]() mutable -> Tensor* {
+    auto s = state++;
+    switch (s) {
+      case 0:
+        return &w_;
+      case 1:
+        return &b_;
+      default:
+        return nullptr;
+    }
+  };
+}
+
+GradientPair ConvolutionLayerOperator::gradientFunc(BackPropOperator* op) {
+  // w': for each (i, j): sum of pixel * result gradient over all pixels
+
+  return GradientPair{};
 }
 
 PoolingOperator::PoolingOperator(int width, int stride, IOperator input)
@@ -210,13 +249,49 @@ Tensor& PoolingOperator::compute() {
       // first
       for (int r = 0, i = 0; r < xm.rows(); r += stride_, ++i) {
         for (int c = 0, j = 0; c < xm.cols(); c += stride_, ++j) {
-          rm(i, j) = MatrixPatch{xm, r, c, width_, width_}.max();
+          rm(i, j) = std::get<0>(MatrixPatch{xm, r, c, width_, width_}.max());
         }
       }
     }
   }
 
   return ret;
+}
+
+GradientPair PoolingOperator::gradientFunc(BackPropOperator* op) {
+  auto& parents = op->parents();
+  SCHECK(parents.size() == 1);
+
+  auto& parentG = parents[0].op->inputGradient()[parents[0].inputIndex];
+  auto& x = inputs_[0]->get();
+  Tensor g{x.dims()};
+
+  for (int e = 0; e < x.dims()[0]; e++) {
+    auto xe = x[e];
+    auto ge = g[e];
+    auto pge = parentG[e];
+    for (int channel = 0; channel < x.dims()[1]; ++channel) {
+      auto xc = xe[channel];
+      auto gc = ge[channel];
+      auto pgc = pge[channel];
+      Matrix xm{xc};
+      Matrix gm{gc};
+      Matrix pgm{pgc};
+
+      for (int r = 0, i = 0; r < xm.rows(); r += stride_, ++i) {
+        for (int c = 0, j = 0; c < xm.cols(); c += stride_, ++j) {
+          Float max;
+          int R, C;
+          tie(max, R, C) = MatrixPatch{xm, r, c, width_, width_}.max();
+          if (R >= 0 && R < gm.rows() && C >= 0 && C < gm.cols()) {
+            gm(R, C) += pgm(i, j);
+          }
+        }
+      }
+    }
+  }
+
+  return make_pair(Gradient{move(g)}, Gradient{});
 }
 
 ReluOperator::ReluOperator(IOperator input) : Operator(input->dims(), {input}) {
