@@ -3,7 +3,6 @@ Work log:
 * Programming fundalmentals
   * [P1] const Matrix view
   * [P2] Write more unit tests for Tensor. e.g. operator+. 
-  * [P2] Consider adding a diagnostic mechanism (can turn on with a single switch). 
 * [P0] Performance optimizations - so I can train more iterations faster so I can easily tune the algorithm;
   * [P0] Optimize convolve
      * Add multithreading
