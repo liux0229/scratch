@@ -222,6 +222,13 @@ class Matrix {
   }
 
   Tensor rowSum() const;
+  Float sum() const {
+    Float ret = 0;
+    for (auto x : tensor_->data()) {
+      ret += x;
+    }
+    return ret;
+  }
 
   TransposedMatrix transpose();
 
@@ -251,8 +258,19 @@ class TransposedMatrix {
 
 class MatrixPatch {
  public:
-  MatrixPatch(Matrix& m, Dim ro, Dim co, Dim rows, Dim cols)
-      : m_(&m), ro_(ro), co_(co), rows_(rows), cols_(cols) {}
+  MatrixPatch(
+      Matrix& m,
+      Dim ro,
+      Dim co,
+      Dim rows,
+      Dim cols,
+      bool reverse = false)
+      : m_(&m),
+        ro_(ro),
+        co_(co),
+        rows_(rows),
+        cols_(cols),
+        direction_(reverse ? -1 : 1) {}
   Dim rows() const {
     return rows_;
   }
@@ -264,8 +282,8 @@ class MatrixPatch {
   Float operator()(Dim i, Dim j) const {
     SCHECK(i >= 0 && i < rows_ && j >= 0 && j < cols_);
 
-    auto r = i + ro_;
-    auto c = j + co_;
+    auto r = targetR(i);
+    auto c = targetC(j);
     if (r < 0 || r >= m_->rows() || c < 0 || c >= m_->cols()) {
       // TODO: consider returning the minimum of the whole image
       return 0.0;
@@ -286,15 +304,24 @@ class MatrixPatch {
         }
       }
     }
-    return std::make_tuple(ret, maxI + ro_, maxJ + co_);
+    return std::make_tuple(ret, targetR(maxI), targetC(maxJ));
   }
 
  private:
+  int targetR(Dim r) const {
+    return ro_ + direction_ * r;
+  }
+
+  int targetC(Dim c) const {
+    return co_ + direction_ * c;
+  }
+
   Matrix* m_;
   Dim ro_;
   Dim co_;
   Dim rows_;
   Dim cols_;
+  int direction_;
 };
 
 inline std::ostream& operator<<(std::ostream& out, const MatrixPatch& m) {
@@ -310,6 +337,7 @@ inline std::ostream& operator<<(std::ostream& out, const MatrixPatch& m) {
   return out;
 }
 
+// TODO: skip lopping through the areas that have value 0.
 inline Float dot(const MatrixPatch& a, const MatrixPatch& b) {
   SCHECK(a.rows() == b.rows() && a.cols() == b.cols());
   // std::cout << "dot " << a << " . " << b << ": ";

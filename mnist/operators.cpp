@@ -172,7 +172,9 @@ ConvolutionLayerOperator::ConvolutionLayerOperator(
     IOperator input)
     : Operator(computeOutputDims(input->dims(), channel, width), {input}),
       w_(computeWDims(input->dims(), channel, width), UniformInitScheme{}),
-      b_(Dims{channel}, UniformInitScheme{}) {}
+      b_(Dims{channel}, UniformInitScheme{}) {
+  SCHECK(input->dims()[1] >= w_.dims()[2] && input->dims()[2] >= w_.dims()[3]);
+}
 
 Tensor& ConvolutionLayerOperator::compute() {
   output_ = convolve(inputs_[0]->get(), w_);
@@ -196,7 +198,17 @@ Tensor& ConvolutionLayerOperator::compute() {
 void ConvolutionLayerOperator::applyGradient(const Gradient& g) {
   SCHECK(g.size() == 2);
 
-  // TODO: print diagnostics
+  if (diagnostics()) {
+    cout << folly::format(
+        "{} W gradient ratio: {:.2F}({:.2F}%); "
+        "B gradient ratio: {:.2F}({:.2F}%)\n",
+        name(),
+        w_.l2Norm(),
+        g[0].l2Norm() / w_.l2Norm() * 100,
+        b_.l2Norm(),
+        g[1].l2Norm() / b_.l2Norm() * 100);
+    setDiagnostics(false);
+  }
 
   w_ += g[0];
   b_ += g[1];
@@ -218,9 +230,96 @@ std::function<Tensor*()> ConvolutionLayerOperator::getParameters() {
 }
 
 GradientPair ConvolutionLayerOperator::gradientFunc(BackPropOperator* op) {
-  // w': for each (i, j): sum of pixel * result gradient over all pixels
+  auto& parents = op->parents();
+  SCHECK(parents.size() == 1);
 
-  return GradientPair{};
+  // w'(0, 0) = g . x(-offset, -offset): for g(i, j), what was the x(,) that's
+  // used for the w(,)
+
+  Tensor wg{w_.dims()};
+
+  auto& g = parents[0].op->inputGradient()[parents[0].inputIndex];
+  auto& x = inputs_[0]->get();
+  SCHECK(g.dims()[0] == x.dims()[0]);
+
+  for (int e = 0; e < g.dims()[0]; ++e) {
+    auto ge = g[e];
+    auto xe = x[e];
+
+    for (int o = 0; o < ge.dims()[0]; ++o) {
+      auto go = ge[o];
+      auto wo = wg[o];
+      Matrix gm{go};
+
+      for (int i = 0; i < xe.dims()[0]; ++i) {
+        auto xi = xe[i];
+        auto woi = wo[i];
+        Matrix wm{woi};
+        Matrix xm{xi};
+        SCHECK(xm.rows() == gm.rows() && xm.cols() == gm.cols());
+
+        for (int r = 0; r < wm.rows(); ++r) {
+          for (int c = 0; c < wm.cols(); ++c) {
+            wm(r, c) += dot(
+                MatrixPatch(gm, 0, 0, gm.rows(), gm.cols()),
+                MatrixPatch(
+                    xm, -wm.rows() / 2, -wm.cols() / 2, xm.rows(), xm.cols()));
+          }
+        }
+      }
+    }
+  }
+
+  // b
+  Tensor bg{b_.dims()};
+  Vector bm{bg};
+  for (int e = 0; e < g.dims()[0]; ++e) {
+    auto ge = g[e];
+    for (int o = 0; o < bm.n(); ++o) {
+      auto go = ge[o];
+      bm(o) += Matrix{go}.sum();
+    }
+  }
+
+  // x
+  Tensor xg{x.dims()};
+  for (int e = 0; e < g.dims()[0]; ++e) {
+    auto ge = g[e];
+    auto xe = xg[e];
+
+    for (int o = 0; o < ge.dims()[0]; ++o) {
+      auto go = ge[o];
+      auto wo = w_[o];
+      Matrix gm{go};
+
+      for (int i = 0; i < xe.dims()[0]; ++i) {
+        auto xi = xe[i];
+        auto woi = wo[i];
+        Matrix xm{xi};
+        Matrix wm{woi};
+        int R = wm.rows(), C = wm.cols();
+
+        for (int r = 0; r < xm.rows(); ++r) {
+          for (int c = 0; c < xm.cols(); ++c) {
+            // Determine the w(,) that is applied to x(r,c) to produce g(0,0)
+            int r1 = R / 2 + r;
+            int c1 = C / 2 + c;
+
+            // Determine the w(,) that is applied to x(r,c) to produce g(n - 1,
+            // m - 1)
+            // int r2 = R / 2 - (gm.rows() - 1) + r;
+            // int c2 = C / 2 - (gm.cols() - 1) + c;
+
+            xm(r, c) +=
+                dot(MatrixPatch(gm, 0, 0, gm.rows(), gm.cols()),
+                    MatrixPatch(wm, r1, c1, gm.rows(), gm.cols(), true));
+          }
+        }
+      }
+    }
+  }
+
+  return GradientPair{Gradient{move(xg)}, Gradient{move(wg), move(bg)}};
 }
 
 PoolingOperator::PoolingOperator(int width, int stride, IOperator input)

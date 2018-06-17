@@ -202,7 +202,7 @@ class SGDTrainer {
     int exampleIndex = 0;
 
     for (int i = 0; i < trainingConfig_.iterations; ++i) {
-      cout << "i=" << i << endl;
+      // cout << "i=" << i << endl;
       printTotalLoss(i);
       printEvaluationResult(i);
 
@@ -370,12 +370,12 @@ class SGDTrainer {
   }
 
   Loss computeLoss() const {
-    cout << "compute loss" << endl;
+    // cout << "compute loss" << endl;
     for (auto op : forwardPass_) {
-      cout << "eval " << op->name() << endl;
+      // cout << "eval " << op->name() << endl;
       op->compute();
     }
-    cout << "forward pass" << endl;
+    // cout << "forward pass" << endl;
     return getLossAfterForwardPass();
   }
 
@@ -432,6 +432,12 @@ class SGDTrainer {
           }
         }
       }
+    }
+
+    if (trainingConfig_.diagnosticsConfig.gradientVerifyDetails) {
+      cout << folly::format(
+                  "Gradient verification passed for {} examples", batch.size())
+           << endl;
     }
   }
 

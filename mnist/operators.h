@@ -3,6 +3,7 @@
 #include "tensor.h"
 
 #include <functional>
+#include <folly/ThreadLocal.h>
 
 class Operator;
 using IOperator = std::shared_ptr<Operator>;
@@ -116,14 +117,14 @@ class BackPropOperator {
   }
 
   void runBackProp() {
-    std::tie(inputGradient_, parameterGradient_) = run_(this);
+    std::tie(inputGradient_, *parameterGradient_) = run_(this);
   }
   // TODO: add back the const modifier
   Gradient& inputGradient() {
     return inputGradient_;
   }
   Gradient& parameterGradient() {
-    return parameterGradient_;
+    return *parameterGradient_;
   }
 
   const ParentList& parents() const {
@@ -133,7 +134,7 @@ class BackPropOperator {
  private:
   std::string name_;
   RunBackProp run_;
-  Gradient parameterGradient_;
+  folly::ThreadLocal<Gradient> parameterGradient_;
   Gradient inputGradient_;
   ParentList parents_;
 };
@@ -221,6 +222,7 @@ class FCLayerOperator : public Operator {
 };
 
 /// Do padding to keep output size the same as input size
+// TODO: add regularization
 class ConvolutionLayerOperator : public Operator {
  public:
   ConvolutionLayerOperator(int channel, int width, IOperator input);
