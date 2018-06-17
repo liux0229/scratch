@@ -7,6 +7,7 @@ Work log:
 * [P0] Performance optimizations - so I can train more iterations faster so I can easily tune the algorithm;
   * [P0] Optimize convolve
      * Add multithreading
+       * Loss operator takes an explicit weight setting
      * Add consider other techniques
   * [P2] O(n^2.8) matrix multiplication algorithm
   * [P1] Try accessing RHS matrix row wise and measure cache misses. 
