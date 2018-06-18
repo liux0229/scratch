@@ -90,8 +90,9 @@ class Tensor {
 
   static Tensor from(const std::vector<Tensor>& v);
 
+  Tensor() : dims_({}), data_() {}
   Tensor(Dims dims, InitScheme&& scheme = ZeroInitScheme{});
-  Tensor(const ExampleList& es, bool label);
+  Tensor(const ExampleRange& es, bool label);
 
   // Adapts the Tensor to a different shape
   Tensor(Dims dims, const Tensor& tensor) : dims_(dims), data_(tensor.data_) {
@@ -155,7 +156,7 @@ class Tensor {
   Tensor(Dims dims, std::shared_ptr<Float> data) : dims_(dims), data_(data) {}
 
   void createStorage();
-  void loadLabel(const ExampleList& es);
+  void loadLabel(const ExampleRange& es);
 
   friend class Vector;
   friend class Matrix;
@@ -397,7 +398,7 @@ Tensor operator*(const MX1& a, const MX2& b) {
   }
 
   TaskRunner::get().run(tasks);
-#elif 1
+#elif 0
   const int T = TaskRunner::get().nThreads();
   SCHECK(T >= 1);
 

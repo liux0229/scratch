@@ -97,13 +97,41 @@ void TaskRunner::runAsync(const TaskRunner::Task& task) {
   folly::via(executor_.get(), task);
 }
 
-void TaskRunner::run(const vector<TaskRunner::Task>& tasks) {
-  vector<folly::Future<folly::Unit>> futures;
-  futures.reserve(tasks.size());
+// void TaskRunner::run(const vector<TaskRunner::Task>& tasks) {
+//   vector<folly::Future<folly::Unit>> futures;
+//   futures.reserve(tasks.size());
+//
+//   for (auto& t : tasks) {
+//     futures.push_back(folly::via(executor_.get(), t));
+//   }
+//
+//   collectAll(futures).wait();
+// }
 
-  for (auto& t : tasks) {
-    futures.push_back(folly::via(executor_.get(), t));
+void TaskRunner::run(const vector<TaskRunner::Task>& tasks) {
+  const int T = tasks.size();
+  SCHECK(tasks.size() >= 1);
+
+  std::atomic<int> finished{0};
+  folly::Promise<folly::Unit> promise;
+  auto future = promise.getFuture();
+
+  for (int t = 0; t < T; t++) {
+    auto* task = &tasks[t];
+    auto compute =
+        [T, task, &finished, &promise]() -> void {
+      (*task)();
+      if (++finished == T) {
+        promise.setValue();
+      }
+    };
+    if (t < T - 1) {
+      TaskRunner::get().runAsync(compute);
+    } else {
+      compute();
+    }
   }
 
-  collectAll(futures).wait();
+  future.wait();
+  // cout << "Task runner finished " << tasks.size() << " tasks" << endl;
 }

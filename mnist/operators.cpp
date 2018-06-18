@@ -71,7 +71,7 @@ Tensor& FCLayerOperator::compute() {
 
   // Allow rvalue conversion to Matrix
   auto product = x * w;
-  output_ = Matrix{product} + b;
+  get() = Matrix{product} + b;
   // cout << "FC output: " << get() << endl;
   return get();
 }
@@ -117,6 +117,8 @@ GradientPair FCLayerOperator::gradientFunc(BackPropOperator* op) {
   SCHECK(parents.size() == 1);
   Matrix parentGradient{parents[0].op->inputGradient()[parents[0].inputIndex]};
   auto inputGradient = parentGradient * Matrix{w_}.transpose();
+
+  cout << "input gradient: " << inputGradient << endl;
 
   // w'(i, j) = x(i) * h'(j) and average over all examples
   // w' = X^T * h'
@@ -177,7 +179,7 @@ ConvolutionLayerOperator::ConvolutionLayerOperator(
 }
 
 Tensor& ConvolutionLayerOperator::compute() {
-  output_ = convolve(inputs_[0]->get(), w_);
+  get() = convolve(inputs_[0]->get(), w_);
 
   auto& ret = get();
   Vector bv{b_};
@@ -229,6 +231,11 @@ std::function<Tensor*()> ConvolutionLayerOperator::getParameters() {
   };
 }
 
+void ConvolutionLayerOperator::attachRegularizer(
+    RegularizerOperator& regularizer) {
+  regularizer.addParameter(&w_);
+}
+
 GradientPair ConvolutionLayerOperator::gradientFunc(BackPropOperator* op) {
   auto& parents = op->parents();
   SCHECK(parents.size() == 1);
@@ -257,6 +264,9 @@ GradientPair ConvolutionLayerOperator::gradientFunc(BackPropOperator* op) {
         Matrix wm{woi};
         Matrix xm{xi};
         SCHECK(xm.rows() == gm.rows() && xm.cols() == gm.cols());
+
+        cout << "gm: " << go << endl;
+        cout << "xm: " << xi << endl;
 
         for (int r = 0; r < wm.rows(); ++r) {
           for (int c = 0; c < wm.cols(); ++c) {
@@ -330,7 +340,7 @@ PoolingOperator::PoolingOperator(int width, int stride, IOperator input)
 Tensor& PoolingOperator::compute() {
   auto& x = inputs_[0]->get();
   auto d = dims().addFront(x.dims()[0]);
-  output_ = Tensor{d};
+  get() = Tensor{d};
   auto& ret = get();
 
   SCHECK(ret.dims()[0] == x.dims()[0] && ret.dims()[1] == x.dims()[1]);
@@ -398,7 +408,7 @@ ReluOperator::ReluOperator(IOperator input) : Operator(input->dims(), {input}) {
 }
 
 Tensor& ReluOperator::compute() {
-  output_ = inputs_[0]->get();
+  get() = inputs_[0]->get();
   auto& ret = get();
   for (auto& x : ret.data()) {
     if (x < 0) {
@@ -432,7 +442,7 @@ SoftmaxOperator::SoftmaxOperator(IOperator input)
 }
 
 Tensor& SoftmaxOperator::compute() {
-  output_ = Tensor{inputs_[0]->get().dims()};
+  get() = Tensor{inputs_[0]->get().dims()};
   // cout << get().dims() << endl;
   Matrix m{get()};
 
@@ -537,12 +547,13 @@ Tensor& LossOperator::compute() {
 
     Float y = max(in(i, x), static_cast<Float>(1e-30f));
 
-    s += -log(y) / label.n();
+    s += -log(y) * weight();
   }
+  // cout << "weight=" << weight() << endl;
 
   Tensor ret{Dims{1}};
   Vector{ret}(0) = s;
-  output_ = ret;
+  get() = ret;
 
   return get();
 }
@@ -557,7 +568,7 @@ GradientPair LossOperator::gradientFunc(BackPropOperator* op) {
     // Note here we are already applying the 1/m scaling operation needed to
     // compute the averaged loss (same pattern as the forward pass)
 
-    m(i, label(i)) = -1 / in(i, label(i)) / m.rows();
+    m(i, label(i)) = -1 / in(i, label(i)) * weight();
     // if (isinf(m(i, label(i)))) {
     //   cout << folly::format("in={};i={};label={}", in(i, label(i)), i,
     //   label(i))
@@ -571,7 +582,7 @@ GradientPair LossOperator::gradientFunc(BackPropOperator* op) {
 SoftmaxLossOperator::SoftmaxLossOperator(
     ISoftmaxOperator softmaxOp,
     ILossOperator lossOp)
-    : Operator(
+    : LossOperator(
           lossOp->dims(),
           softmaxOp->getInputs() + lossOp->getInputs() -
               OperatorList{softmaxOp}),
@@ -601,9 +612,9 @@ GradientPair SoftmaxLossOperator::gradientFunc(BackPropOperator* op) {
 
     for (int j = 0; j < m.cols(); ++j) {
       if (j == label(i)) {
-        m(i, j) = (1.0 - softmax(i, j)) / m.rows();
+        m(i, j) = (1.0 - softmax(i, j)) * weight();
       } else {
-        m(i, j) = -softmax(i, j) / m.rows();
+        m(i, j) = -softmax(i, j) * weight();
       }
     }
   }
@@ -619,13 +630,15 @@ Tensor& L2RegularizerOperator::compute() {
 
   Tensor ret{Dims{1}};
   Vector{ret}(0) = s;
-  output_ = ret;
+  get() = ret;
 
   return get();
 }
 
 void L2RegularizerOperator::applyGradient(const Gradient& g) {
-  SCHECK(parameters_.size() == g.size());
+  SCHECK_MSG(
+      parameters_.size() == g.size(),
+      folly::format("{}  vs {}", parameters_.size(), g.size()).str());
 
   if (diagnostics()) {
     cout << name() << " gradient ratio:";
@@ -656,9 +669,8 @@ GradientPair L2RegularizerOperator::gradientFunc(BackPropOperator*) {
       //   cout << w->data()[i] << " " << t.data()[i] << endl;
       // }
     }
-    // FIXME
-    // g.push_back(move(t));
-    g.push_back(t);
+
+    g.push_back(move(t));
   }
   return make_pair(Gradient{}, Gradient{move(g)});
 }

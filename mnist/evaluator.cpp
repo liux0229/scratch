@@ -20,8 +20,10 @@ EvaluationResult Evaluator::evaluate(IModel model, ExampleList tests) const {
   vector<double> errors(N_CLASS), total(N_CLASS);
   int index = 0;
 
-  for (const auto& e : tests) {
-    auto prediction = model->predict(e);
+  auto predictions = model->predict(tests);
+  for (size_t i = 0; i < tests.size(); ++i) {
+    auto& e = tests[i];
+    auto& prediction = predictions[i];
     ++total[e.label];
 
     bool isError = prediction.getClass() != e.label;

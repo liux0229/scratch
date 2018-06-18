@@ -2,8 +2,8 @@
 
 #include "tensor.h"
 
-#include <functional>
 #include <folly/ThreadLocal.h>
+#include <functional>
 
 class Operator;
 using IOperator = std::shared_ptr<Operator>;
@@ -24,11 +24,11 @@ class Operator {
   }
   virtual Tensor& compute() = 0;
   virtual const Tensor& get() const {
-    return output_.value();
+    return *output_;
   }
   // fix the const protection
   virtual Tensor& get() {
-    return output_.value();
+    return *output_;
   }
 
   const OperatorList& getInputs() const {
@@ -75,7 +75,7 @@ class Operator {
   // Think of dim size as the size of one single example
   Dims dims_;
   OperatorList inputs_;
-  folly::Optional<Tensor> output_;
+  folly::ThreadLocal<Tensor> output_;
 
  private:
   virtual std::function<Tensor*()> getParameters() {
@@ -117,11 +117,11 @@ class BackPropOperator {
   }
 
   void runBackProp() {
-    std::tie(inputGradient_, *parameterGradient_) = run_(this);
+    std::tie(*inputGradient_, *parameterGradient_) = run_(this);
   }
   // TODO: add back the const modifier
   Gradient& inputGradient() {
-    return inputGradient_;
+    return *inputGradient_;
   }
   Gradient& parameterGradient() {
     return *parameterGradient_;
@@ -135,7 +135,7 @@ class BackPropOperator {
   std::string name_;
   RunBackProp run_;
   folly::ThreadLocal<Gradient> parameterGradient_;
-  Gradient inputGradient_;
+  folly::ThreadLocal<Gradient> inputGradient_;
   ParentList parents_;
 };
 using BackPropOperatorList = std::vector<IBackPropOperator>;
@@ -162,8 +162,8 @@ class InputOperator : public Operator {
   std::string name() const override {
     return NameMaker{} << "input " << dims();
   }
-  void load(const ExampleList& examples, bool label = false) {
-    output_ = Tensor{examples, label};
+  void load(const ExampleRange& examples, bool label = false) {
+    get() = Tensor{examples, label};
   }
   Tensor& compute() override {
     return get();
@@ -189,7 +189,7 @@ class AdapterOperator : public Operator {
   }
 
   Tensor& compute() override {
-    output_ =
+    get() =
         Tensor(dims().addFront(inputs_[0]->get().dims()[0]), inputs_[0]->get());
     return get();
   }
@@ -229,8 +229,12 @@ class ConvolutionLayerOperator : public Operator {
   std::string name() const override {
     return NameMaker{} << "cnn-layer " << dims();
   }
+
   Tensor& compute() override;
+
   void applyGradient(const Gradient& g) override;
+
+  void attachRegularizer(RegularizerOperator& regularizer) override;
 
  private:
   // So that I may introduce different padding schemes in the future
@@ -306,19 +310,29 @@ using ISoftmaxOperator = std::shared_ptr<SoftmaxOperator>;
 
 class LossOperator : public Operator {
  public:
+  using Operator::Operator;
   LossOperator(IOperator input, IOperator label);
   std::string name() const override {
     return "loss";
   }
   Tensor& compute() override;
+  virtual void setWeight(Float w) {
+    weight_ = w;
+  }
+  Float weight() const {
+    return weight_;
+  }
 
  private:
   GradientPair gradientFunc(BackPropOperator*) override;
+  // Weight to be applied to each example in loss and gradient computation
+  // We don't automatically infer because of parallel execution
+  Float weight_ = 1.0;
 };
 using ILossOperator = std::shared_ptr<LossOperator>;
 
 // Fuse softmax + loss to avoid numeric instability because of the division
-class SoftmaxLossOperator : public Operator {
+class SoftmaxLossOperator : public LossOperator {
  public:
   SoftmaxLossOperator(ISoftmaxOperator softmaxOp, ILossOperator lossOp);
   std::string name() const override {
@@ -330,6 +344,10 @@ class SoftmaxLossOperator : public Operator {
   }
   Tensor& get() override {
     return lossOp_->get();
+  }
+  void setWeight(Float w) override {
+    LossOperator::setWeight(w);
+    lossOp_->setWeight(w);
   }
 
  private:

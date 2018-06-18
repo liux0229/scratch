@@ -81,7 +81,7 @@ Tensor Tensor::from(const vector<Tensor>& v) {
 }
 
 // Produce a two dimensional tensor for now
-Tensor::Tensor(const ExampleList& es, bool label) {
+Tensor::Tensor(const ExampleRange& es, bool label) {
   SCHECK(es.size() > 0);
 
   if (label) {
@@ -108,7 +108,7 @@ Tensor::Tensor(const ExampleList& es, bool label) {
   }
 }
 
-void Tensor::loadLabel(const ExampleList& es) {
+void Tensor::loadLabel(const ExampleRange& es) {
   dims_ = Dims{static_cast<Dim>(es.size())};
   createStorage();
 

@@ -1,4 +1,5 @@
 #include <folly/Format.h>
+#include <atomic>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -7,14 +8,6 @@
 #include "trainer.h"
 
 using namespace std;
-
-class ConstModel : public Model {
-  Prediction predict(const Example& e) const override {
-    Prediction p;
-    fill(p.prob.begin(), p.prob.end(), 1.0 / p.prob.size());
-    return p;
-  }
-};
 
 class ForwardPassModel : public Model {
  public:
@@ -27,22 +20,39 @@ class ForwardPassModel : public Model {
     // }
   }
 
-  Prediction predict(const Example& e) const override {
-    input_->load(ExampleList{e});
-    for (auto op : forwardOrder_) {
-      op->compute();
-    }
-    auto& out = output_->get();
-    // cout << "out dim: " << out << endl;
+  vector<Prediction> predict(const ExampleList& examples) const override {
+    vector<Prediction> ret(examples.size());
 
-    Matrix m{out};
-    // I want a row view
-    Prediction pred;
-    for (int i = 0; i < m.cols(); i++) {
-      pred.prob[i] = m(0, i);
+    auto T = TaskRunner::get().nThreads();
+    auto batches = ExampleRange{examples}.split(T);
+    T = batches.size();
+
+    vector<TaskRunner::Task> tasks;
+    for (int i = 0; i < T; ++i) {
+      tasks.push_back([this, i, &batches, &ret]() {
+        input_->load(batches[i]);
+        for (auto op : forwardOrder_) {
+          op->compute();
+        }
+        auto& out = output_->get();
+        // cout << "out dim: " << out << endl;
+
+        Matrix m{out};
+
+        auto begin = i * batches[0].size();
+        for (int e = 0; e < m.rows(); ++e) {
+          auto& pred = ret[begin + e];
+          for (int k = 0; k < m.cols(); k++) {
+            // I want a row view
+            pred.prob[k] = m(e, k);
+          }
+        }
+      });
     }
 
-    return pred;
+    TaskRunner::get().run(tasks);
+
+    return ret;
   }
 
   void read(istream& in) {
@@ -194,6 +204,9 @@ class SGDTrainer {
     return trainingConfig_.diagnosticsConfig.learningCurveConfig;
   }
 
+  // TODO:
+  // We need to remove regularizer from the forward pass and backward pass
+  // list and compute its loss, gradient and apply its gradient separately
   void trainInternal() {
     addRegularizer();
     backwardPass_ = buildBackwardPass(forwardPass_);
@@ -207,8 +220,6 @@ class SGDTrainer {
       printEvaluationResult(i);
 
       auto batch = prepareBatch(exampleIndex);
-      input_->load(batch, false);
-      label_->load(batch, true);
       auto g = computeGradient(batch);
 
       if (trainingConfig_.diagnosticsConfig.verifyGradient) {
@@ -218,28 +229,32 @@ class SGDTrainer {
       // At this point we have done the forward pass
       writeLearningCurve(i);
 
+      SCHECK(forwardPass_.size() + 1 == g.size());
       for (size_t k = 0; k < forwardPass_.size(); ++k) {
         // TODO: look into this copy
         forwardPass_[k]->applyGradient(g[k] * -alpha);
       }
+      regularizer_->applyGradient(g[forwardPass_.size()] * -alpha);
     }
   }
 
-  ExampleList prepareBatch(int& start) {
+  ExampleRange prepareBatch(int& start) {
     const int K = trainingConfig_.batchSize;
     const int N = examples_.size();
 
-    ExampleList batch;
-    if (start + K > N) {
-      start = 0;
-    }
-    for (int j = 0; j < K; ++j) {
-      batch.push_back(examples_[start + j]);
-    }
-    start += K;
-    return batch;
+    auto ret = ExampleRange(examples_, start, K);
+
+    start = (start + K) % N;
+    return ret;
   }
 
+  void loadBatch(const ExampleRange& batch) const {
+    input_->load(batch, false);
+    label_->load(batch, true);
+  }
+
+  // TODO: this would not be completely correct after we perform multithreaded
+  // execution
   void writeLearningCurve(int iteration) {
     if (iteration %
             trainingConfig_.diagnosticsConfig.learningCurveConfig
@@ -256,7 +271,7 @@ class SGDTrainer {
 
     out << folly::format("\"iteration\": {}, ", iteration);
     out << folly::format(
-        "\"loss\": {}, ", getLossAfterForwardPass().trainingLoss);
+        "\"loss\": {}, ", getTotalLoss(Vector{lossOp_->get()}(0)).trainingLoss);
 
     {
       JsonArrayWriter writer("w.norm", out);
@@ -307,13 +322,15 @@ class SGDTrainer {
   }
 
   void printTotalLoss(int i) {
-    if (i % trainingConfig_.diagnosticsConfig.lossIterations == 0) {
-      input_->load(examples_, false);
-      label_->load(examples_, true);
-      cout << "i=" << i << " loss: " << computeLoss() << endl;
-      for (auto op : forwardPass_) {
-        op->setDiagnostics(true);
-      }
+    if (i % trainingConfig_.diagnosticsConfig.lossIterations != 0) {
+      return;
+    }
+
+    auto loss = runForwardPassAndComputeLoss(ExampleRange(examples_));
+    cout << "i=" << i << " loss: " << getTotalLoss(loss) << endl;
+
+    for (auto op : forwardPass_) {
+      op->setDiagnostics(true);
     }
   }
 
@@ -339,16 +356,16 @@ class SGDTrainer {
     for (auto op : forwardPass_) {
       op->attachRegularizer(*regularizer_);
     }
-    forwardPass_.push_back(regularizer_);
+    // forwardPass_.push_back(regularizer_);
   }
 
-  BackPropOperatorList buildBackwardPass(
-      const OperatorList& forwardPass) const {
+  BackPropOperatorList buildBackwardPass(const OperatorList& forwardPass) {
     BackPropOperatorList ret;
 
     for (auto op : reverse(forwardPass)) {
       ret.push_back(op->getBackPropOperator());
     }
+    regularizerBackOp_ = regularizer_->getBackPropOperator();
     for (auto op : forwardPass) {
       // TODO: verify this when we have graphs with more than one input
       int index = 0;
@@ -369,62 +386,125 @@ class SGDTrainer {
     return ret;
   }
 
-  Loss computeLoss() const {
+  Float runForwardPassAndComputeLoss(ExampleRange batch) const {
+    int T = TaskRunner::get().nThreads();
+    auto batches = batch.split(T);
+    // cout << "Threaded batch size: " << batches.size() << endl;
+    T = batches.size();
+
+    lossOp_->setWeight(1.0 / batch.size());
+    vector<Float> losses(T, 0.0);
+    vector<TaskRunner::Task> tasks;
+    for (int i = 0; i < T; ++i) {
+      tasks.push_back([this, i, &batches, &losses]() {
+        loadBatch(batches[i]);
+        losses[i] = computeLoss();
+      });
+    }
+
+    TaskRunner::get().run(tasks);
+
+    return accumulate(losses.begin(), losses.end(), 0.0);
+  }
+
+  Float computeLoss() const {
     // cout << "compute loss" << endl;
     for (auto op : forwardPass_) {
       // cout << "eval " << op->name() << endl;
       op->compute();
     }
     // cout << "forward pass" << endl;
-    return getLossAfterForwardPass();
+    return Vector{lossOp_->get()}(0);
   }
 
-  Loss getLossAfterForwardPass() const {
-    Float regularizerLoss =
-        regularizer_ ? Vector{regularizer_->get()}(0) : static_cast<Float>(0.0);
-    return Loss{Vector{lossOp_->get()}(0), regularizerLoss};
+  Loss getTotalLoss(Float loss) const {
+    Float regularizerLoss = 0.0;
+    if (regularizer_) {
+      regularizer_->compute();
+      regularizerLoss = Vector{regularizer_->get()}(0);
+    }
+
+    return Loss{loss, regularizerLoss};
   }
 
   // return gradient from each operator following the forward order
-  GradientList computeGradient(const ExampleList& batch) const {
+  GradientList computeGradient(ExampleRange batch) const {
     SCHECK(forwardPass_.size() == backwardPass_.size());
 
-    GradientList gradients(forwardPass_.size());
+    lossOp_->setWeight(1.0 / batch.size());
 
-    // forward pass
+    int T = TaskRunner::get().nThreads();
+    auto batches = batch.split(T);
+    T = batches.size();
+
+    vector<TaskRunner::Task> tasks;
+    tasks.reserve(T);
+    vector<GradientList> gradientsPerThread(
+        T, GradientList(forwardPass_.size()));
+
+    for (int i = 0; i < T; ++i) {
+      tasks.push_back([this, i, &batches, &gradientsPerThread]() {
+        loadBatch(batches[i]);
+
+        runForwardPass();
+
+        // backward pass
+        int index = backwardPass_.size() - 1;
+        for (auto op : backwardPass_) {
+          op->runBackProp();
+
+          // TODO: look into this copy
+          // (e.g. we can make a shallow shared copy;
+          // need to write a unit test to verify).
+          gradientsPerThread[i][index] = op->parameterGradient();
+
+          // if (op->name() == "l2_regularizer_grad") {
+          //   cout << "compute gradient: " << gradients[index][0].data()[0]
+          //   << endl;
+          // }
+          --index;
+        }
+      });
+    }
+
+    TaskRunner::get().run(tasks);
+
+    for (int i = 1; i < T; ++i) {
+      for (int j = 0; j < gradientsPerThread[0].size(); ++j) {
+        for (int k = 0; k < gradientsPerThread[0][j].size(); ++k) {
+          gradientsPerThread[0][j][k] += gradientsPerThread[i][j][k];
+        }
+      }
+    }
+
+    auto gradientList = std::move(gradientsPerThread[0]);
+    regularizerBackOp_->runBackProp();
+    // cout << "Regularizer gradient size: "
+    //      << regularizerBackOp_->parameterGradient().size() << endl;
+    gradientList.push_back(regularizerBackOp_->parameterGradient());
+    return gradientList;
+  }
+
+  void runForwardPass() const {
     for (auto op : forwardPass_) {
       op->compute();
     }
-
-    // backward pass
-    int index = backwardPass_.size() - 1;
-    for (auto op : backwardPass_) {
-      op->runBackProp();
-
-      // TODO: look into this copy
-      gradients[index] = op->parameterGradient();
-
-      // if (op->name() == "l2_regularizer_grad") {
-      //   cout << "compute gradient: " << gradients[index][0].data()[0] <<
-      //   endl;
-      // }
-      --index;
-    }
-
-    return gradients;
   }
 
-  void verifyGradient(const ExampleList& batch, const GradientList& g) const {
+  void verifyGradient(const ExampleRange& batch, const GradientList& g) const {
     const double eps = 1e-2;
     auto gDebug = computeGradientDebug(batch);
-    SCHECK(g.size() == gDebug.size());
+    SCHECK_MSG(
+        g.size() == gDebug.size(),
+        folly::format("{} vs {}", g.size() == gDebug.size()).str());
 
     for (int i = 0; i < static_cast<int>(g.size()); ++i) {
       SCHECK(g[i].size() == gDebug[i].size());
       for (int j = 0; j < static_cast<int>(g[i].size()); ++j) {
         if (!g[i][j].equals(gDebug[i][j], eps)) {
-          cout << folly::format(
-              "{} #{} gradient not equal:\n", forwardPass_[i]->name(), j);
+          auto name = i < forwardPass_.size() ? forwardPass_[i]->name()
+                                              : regularizer_->name();
+          cout << folly::format("{} #{} gradient not equal:\n", name, j);
           if (trainingConfig_.diagnosticsConfig.gradientVerifyDetails) {
             cout << "gradient: " << g[i][j] << endl;
             cout << "debug gradient: " << gDebug[i][j] << endl;
@@ -441,21 +521,26 @@ class SGDTrainer {
     }
   }
 
-  GradientList computeGradientDebug(const ExampleList& batch) const {
+  GradientList computeGradientDebug(ExampleRange batch) const {
     GradientList gradients;
     gradients.reserve(forwardPass_.size());
 
     for (auto op : forwardPass_) {
-      auto g =
-          op->computeGradientDebug([this]() { return computeLoss().total(); });
+      gradients.push_back(op->computeGradientDebug([this, &batch]() {
+        // TODO: This reloads the input for every forward pass
+        // This is necessary to ensure thread local inputs are accessed
+        // correctly
+        auto loss = runForwardPassAndComputeLoss(batch);
+        return getTotalLoss(loss).total();
+      }));
+    }
 
-      // cout << op->name() << ": " << endl;
-      // for (auto& gr : g) {
-      //   // cout << gr.dims() << endl;
-      //   cout << gr << endl;
-      // }
-
-      gradients.push_back(std::move(g));
+    // TODO: always creates the regularizer so we can avoid these checks
+    if (regularizer_) {
+      gradients.push_back(regularizer_->computeGradientDebug([this]() {
+        // For the regularizer, we shouldn't compute the total loss
+        return getTotalLoss(0.0).total();
+      }));
     }
 
     return gradients;
@@ -470,10 +555,11 @@ class SGDTrainer {
   OutputFile learningCurveOutput_;
 
   IInputOperator label_;
-  IOperator lossOp_;
+  ILossOperator lossOp_;
   IRegularizerOperator regularizer_;
   OperatorList forwardPass_;
   BackPropOperatorList backwardPass_;
+  IBackPropOperator regularizerBackOp_;
 };
 
 IModel Trainer::train(

@@ -69,7 +69,6 @@ struct Example {
   std::array<std::array<Float, N_IMAGE>, N_IMAGE> image;
   int label;
 };
-
 using ExampleList = std::vector<Example>;
 
 class ExampleReader {
@@ -84,22 +83,6 @@ class ExampleReader {
   int numExample_;
   int cur_{0};
 };
-
-struct Prediction {
-  std::array<float, N_CLASS> prob;
-  int getClass() const {
-    return std::max_element(prob.begin(), prob.end()) - prob.begin();
-  }
-};
-
-class Model {
- public:
-  virtual ~Model() {}
-  virtual Prediction predict(const Example& e) const = 0;
-  virtual void read(std::istream& in) {}
-  virtual void write(std::ostream& out) const {}
-};
-using IModel = std::shared_ptr<Model>;
 
 void printStackTrace();
 
@@ -217,7 +200,7 @@ class TaskRunner {
  private:
   TaskRunner();
 
-  const int nThreads_ = 32;
+  const int nThreads_ = 1;
   std::unique_ptr<folly::Executor> executor_;
 };
 
@@ -296,3 +279,92 @@ std::ostream& operator<<(std::ostream& out, const std::array<T, N>& v) {
 
   return out;
 }
+
+class ExampleRange {
+ public:
+  ExampleRange(const ExampleList& examples, int start = 0, int size = 0)
+      : v_(&examples),
+        start_(start),
+        size_(size == 0 ? examples.size() : size) {
+    SCHECK(start < examples.size());
+  }
+
+  class Iterator {
+   public:
+    Iterator(const ExampleRange& base, int i) : base_(&base), i_(i) {}
+    const Example& operator*() const {
+      return (*base_)[i_];
+    }
+
+    Iterator& operator++() {
+      ++i_;
+      return *this;
+    }
+
+    bool operator==(Iterator b) const {
+      return base_ == b.base_ && i_ == b.i_;
+    }
+
+    bool operator!=(Iterator b) const {
+      return !(*this == b);
+    }
+
+   private:
+    const ExampleRange* base_;
+    int i_;
+  };
+
+  Iterator begin() const {
+    return Iterator{*this, 0};
+  }
+
+  Iterator end() const {
+    return Iterator{*this, size_};
+  }
+
+  int size() const {
+    return size_;
+  }
+
+  const Example& operator[](int i) const {
+    auto x = (start_ + i) % v_->size();
+    return (*v_)[x];
+  }
+
+  std::vector<ExampleRange> split(int n) const {
+    SCHECK(n >= 1);
+    n = std::min(n, size());
+    auto b = size() / n;
+
+    std::vector<ExampleRange> ret;
+    ret.reserve(n);
+
+    for (int i = 0; i < n - 1; ++i) {
+      ret.push_back(ExampleRange(*v_, start_ + i * b, b));
+    }
+    ret.push_back(
+        ExampleRange(*v_, start_ + (n - 1) * b, size() - (n - 1) * b));
+    return ret;
+  }
+
+ private:
+  const ExampleList* v_;
+  int start_;
+  int size_;
+};
+
+struct Prediction {
+  std::array<float, N_CLASS> prob;
+  int getClass() const {
+    return std::max_element(prob.begin(), prob.end()) - prob.begin();
+  }
+};
+
+class Model {
+ public:
+  virtual ~Model() {}
+  virtual std::vector<Prediction> predict(const ExampleList& example) const = 0;
+  virtual void read(std::istream& in) {}
+  virtual void write(std::ostream& out) const {}
+};
+using IModel = std::shared_ptr<Model>;
