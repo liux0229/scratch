@@ -24,6 +24,7 @@ Work log:
     * Multi-channel pooling (e.g. invariant to rotations)
     * Out of boundary pixel values: does the choice of default value matter?
     * CNN layer weight gradient seems to be very small. 
+    * Initialization strategy
   * Different families of ReLu
     * DReLu: https://openreview.net/forum?id=H1DGha1CZ
 * Numeric stability
