@@ -24,6 +24,7 @@ Work log:
     * Multi-channel pooling (e.g. invariant to rotations)
     * Out of boundary pixel values: does the choice of default value matter?
     * CNN layer weight gradient seems to be very small. 
+      * We may not be able to catch gradient mismatches.
     * Initialization strategy
     * Model reloading
   * Different families of ReLu
