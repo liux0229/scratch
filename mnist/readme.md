@@ -16,11 +16,12 @@ Work log:
     * Out of boundary pixel values: does the choice of default value matter?
     * Initialization strategy
     * Model reloading
+    * Static config access
+      * I have some use case for it.
   * Different families of ReLu
     * DReLu: https://openreview.net/forum?id=H1DGha1CZ
 * Numeric stability
   * Overflow problem: can gradient be a very large number (e.g. would capping gradient computation, e.g. matrix multiplication, still be correct?)
-    * Can be diagnosed by printing gradient norm / parameter norm. So far there are no problems. 
 * Optimization algorithm improvement:
   * [P1] Try AdaGrad on the current optimization problem 
   * [P1] LARS: https://arxiv.org/pdf/1708.03888.pdf
