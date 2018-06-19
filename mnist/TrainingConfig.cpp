@@ -83,6 +83,7 @@ TrainingConfig TrainingConfig::read(istream& in) {
       {"iterations", OP(config.iterations = expect<int>(in);)},
       {"batchSize", OP(config.batchSize = expect<int>(in);)},
       {"writeModelTo", OP(config.writeModelTo = readString(in);)},
+      {"threads", OP(config.threads = expect<int>(in);)},
   };
   return parseConfig(in, processors);
 }
@@ -165,9 +166,10 @@ IOperator CNNLayer::create(IOperator op) const {
   if (dims.size() != 3) {
     SCHECK(dims.size() == 1);
     auto n = dims[0];
-    // TODO: more generic
-    SCHECK(N_IMAGE * N_IMAGE == n);
-    dims = Dims{1, n / N_IMAGE, n / N_IMAGE};
+
+    int size = std::sqrt(n);
+    SCHECK(size * size == n);
+    dims = Dims{1, n / size, n / size};
     op = make_shared<AdapterOperator>(dims, op);
   }
 

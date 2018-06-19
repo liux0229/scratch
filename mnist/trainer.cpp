@@ -501,6 +501,9 @@ class SGDTrainer {
     for (int i = 0; i < static_cast<int>(g.size()); ++i) {
       SCHECK(g[i].size() == gDebug[i].size());
       for (int j = 0; j < static_cast<int>(g[i].size()); ++j) {
+        // cout << "gradient: " << g[i][j] << endl;
+        // cout << "debug gradient: " << gDebug[i][j] << endl;
+
         if (!g[i][j].equals(gDebug[i][j], eps)) {
           auto name = i < forwardPass_.size() ? forwardPass_[i]->name()
                                               : regularizer_->name();
@@ -530,8 +533,9 @@ class SGDTrainer {
         // TODO: This reloads the input for every forward pass
         // This is necessary to ensure thread local inputs are accessed
         // correctly
-        auto loss = runForwardPassAndComputeLoss(batch);
-        return getTotalLoss(loss).total();
+
+        // Note: this should not include the regularization term
+        return runForwardPassAndComputeLoss(batch);
       }));
     }
 

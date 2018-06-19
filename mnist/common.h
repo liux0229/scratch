@@ -193,14 +193,17 @@ class TaskRunner {
   void run(const std::vector<Task>& tasks);
   void runAsync(const Task& task);
 
-  int nThreads() const {
+  static void setThreads(int n) {
+    nThreads_ = n;
+  }
+  static int nThreads() {
     return nThreads_;
   }
 
  private:
   TaskRunner();
 
-  const int nThreads_ = 1;
+  static int nThreads_;
   std::unique_ptr<folly::Executor> executor_;
 };
 
@@ -340,10 +343,10 @@ class ExampleRange {
     ret.reserve(n);
 
     for (int i = 0; i < n - 1; ++i) {
-      ret.push_back(ExampleRange(*v_, start_ + i * b, b));
+      ret.push_back(ExampleRange(*v_, (start_ + i * b) % v_->size(), b));
     }
-    ret.push_back(
-        ExampleRange(*v_, start_ + (n - 1) * b, size() - (n - 1) * b));
+    ret.push_back(ExampleRange(
+        *v_, (start_ + (n - 1) * b) % v_->size(), size() - (n - 1) * b));
     return ret;
   }
 

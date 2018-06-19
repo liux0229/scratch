@@ -114,6 +114,7 @@ struct TrainingConfig {
   int iterations;
   int batchSize;
   std::string writeModelTo;
+  int threads;
 };
 
 std::ostream& operator<<(std::ostream& out, const ModelArchitecture& modelArch);

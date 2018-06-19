@@ -80,12 +80,15 @@ void printStackTrace() {
   backtrace_symbols_fd(array, size, STDERR_FILENO);
 }
 
+int TaskRunner::nThreads_{0};
+
 TaskRunner& TaskRunner::get() {
   static TaskRunner runner;
   return runner;
 }
 
 TaskRunner::TaskRunner() {
+  SCHECK(nThreads() > 0);
   auto queue = std::make_unique<folly::LifoSemMPMCQueue<
       folly::CPUThreadPoolExecutor::CPUTask,
       folly::QueueBehaviorIfFull::BLOCK>>(nThreads() * 10);

@@ -20,6 +20,8 @@ int main() {
   SCHECK(configFile.good());
 
   auto trainingConfig = TrainingConfig::read(configFile);
+  TaskRunner::setThreads(trainingConfig.threads);
+
   auto& data = trainingConfig.trainingData;
 
   ExampleReader trainReader{data.trainInput, data.trainLabel};

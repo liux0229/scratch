@@ -345,9 +345,9 @@ inline Float dot(const MatrixPatch& a, const MatrixPatch& b) {
   Float s = 0;
   for (Dim i = 0; i < a.rows(); ++i) {
     for (Dim j = 0; j < a.cols(); ++j) {
-      if (a(i, j) * b(i, j) != 0) {
-        // std::cout << " + " << a(i, j) * b(i, j);
-      }
+      // if (a(i, j) * b(i, j) != 0) {
+      //   std::cout << " + " << a(i, j) * b(i, j);
+      //}
       s += a(i, j) * b(i, j);
     }
   }

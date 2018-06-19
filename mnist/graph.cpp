@@ -66,6 +66,9 @@ pair<IInputOperator, IOperator> GraphBuilder::buildMLP(
     op = layer->create(op);
   }
 
+  if (op->dims().size() > 1) {
+    op = make_shared<AdapterOperator>(Dims{op->dims().dimSize}, op);
+  }
   op = make_shared<FCLayerOperator>(nclass, op);
   op = make_shared<SoftmaxOperator>(op);
 

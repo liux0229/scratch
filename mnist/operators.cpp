@@ -118,7 +118,7 @@ GradientPair FCLayerOperator::gradientFunc(BackPropOperator* op) {
   Matrix parentGradient{parents[0].op->inputGradient()[parents[0].inputIndex]};
   auto inputGradient = parentGradient * Matrix{w_}.transpose();
 
-  cout << "input gradient: " << inputGradient << endl;
+  // cout << "input gradient: " << inputGradient << endl;
 
   // w'(i, j) = x(i) * h'(j) and average over all examples
   // w' = X^T * h'
@@ -265,15 +265,20 @@ GradientPair ConvolutionLayerOperator::gradientFunc(BackPropOperator* op) {
         Matrix xm{xi};
         SCHECK(xm.rows() == gm.rows() && xm.cols() == gm.cols());
 
-        cout << "gm: " << go << endl;
-        cout << "xm: " << xi << endl;
+        // cout << "gm: " << go << endl;
+        // cout << "xm: " << xi << endl;
 
         for (int r = 0; r < wm.rows(); ++r) {
           for (int c = 0; c < wm.cols(); ++c) {
-            wm(r, c) += dot(
-                MatrixPatch(gm, 0, 0, gm.rows(), gm.cols()),
-                MatrixPatch(
-                    xm, -wm.rows() / 2, -wm.cols() / 2, xm.rows(), xm.cols()));
+            wm(r, c) +=
+                dot(MatrixPatch(gm, 0, 0, gm.rows(), gm.cols()),
+                    MatrixPatch(
+                        xm,
+                        r - wm.rows() / 2,
+                        c - wm.cols() / 2,
+                        xm.rows(),
+                        xm.cols()));
+            // cout << "wm(r, c) = " << wm(r, c) << endl;
           }
         }
       }
