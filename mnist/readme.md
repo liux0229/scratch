@@ -6,19 +6,10 @@ Work log:
   * [P1] Associate gradient with the Tensor 
 * [P0] Performance optimizations - so I can train more iterations faster so I can easily tune the algorithm;
   * [P0] Optimize convolve
-     * Add multithreading
-       * Loss operator takes an explicit weight setting
      * Add consider other techniques
   * [P2] O(n^2.8) matrix multiplication algorithm
   * [P1] Try accessing RHS matrix row wise and measure cache misses. 
   * [P2] Layout matrix in cache friendly ways
-  * [P0] Consider running the whole forward and backward pass in parallel. 
-    * [P1] Also need to ensure we speed up the periodical loss evaluation run (not the test error rate run). 
-    * [P0] Ideas of how to do this:
-    * We can break down a batch into M batches. 
-    * M batches can do forward and backward pass independently (the final scaler needs to sum jointly).
-    * This is because each term from the M batch can have their own gradients, which are then summed together.
-    * Implementation ideas include thread local or explicit thread (sub-batch) only state. We should aim for simplicity - execution structure should be hidden from the expression structure.  
 * Model architecture
   * CNN 
     * Multi-channel pooling (e.g. invariant to rotations)
