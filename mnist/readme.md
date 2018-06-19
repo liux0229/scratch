@@ -18,6 +18,7 @@ Work log:
     * Model reloading
     * Static config access
       * I have some use case for it.
+    * Check the first layer learned edges.
   * Different families of ReLu
     * DReLu: https://openreview.net/forum?id=H1DGha1CZ
 * Numeric stability
