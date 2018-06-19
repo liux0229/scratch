@@ -21,8 +21,6 @@ Work log:
 * Numeric stability
   * Overflow problem: can gradient be a very large number (e.g. would capping gradient computation, e.g. matrix multiplication, still be correct?)
     * Can be diagnosed by printing gradient norm / parameter norm. So far there are no problems. 
-  * [P0] double vs. float: conclusion: we should use double. Why unnecessarily restrict ourselves? 
-    * Using double resolves the overflowing problem. 
 * Optimization algorithm improvement:
   * [P1] Try AdaGrad on the current optimization problem 
   * [P1] LARS: https://arxiv.org/pdf/1708.03888.pdf
@@ -41,7 +39,6 @@ Work log:
   * Shut down training through C-c
 
 Notes:
-  * Time a fixed run so we can measure performance improvements [done]
   * Useful links
     * https://matplotlib.org/users/image_tutorial.html
     * MNIST dataset reader in Python: https://github.com/hsjeong5/MNIST-for-Numpy/blob/master/mnist.py
