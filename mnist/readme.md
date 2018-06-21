@@ -38,6 +38,7 @@ Work log:
   * [P0] Learning curve
     * [P1] Activation stats 
   * Shut down training through C-c
+  * Dead ReLu
 
 Notes:
   * Useful links
