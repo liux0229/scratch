@@ -337,6 +337,26 @@ GradientPair ConvolutionLayerOperator::gradientFunc(BackPropOperator* op) {
   return GradientPair{Gradient{move(xg)}, Gradient{move(wg), move(bg)}};
 }
 
+void ConvolutionLayerOperator::read(std::istream& in) {
+  Operator::read(in);
+
+  expectToken(in, "W");
+  expectToken(in, "=");
+  w_ = Tensor::read(in);
+
+  expectToken(in, "B");
+  expectToken(in, "=");
+  b_ = Tensor::read(in);
+}
+
+void ConvolutionLayerOperator::write(std::ostream& out) const {
+  Operator::write(out);
+  out << "W = ";
+  Tensor::write(out, w_);
+  out << "B = ";
+  Tensor::write(out, b_);
+}
+
 PoolingOperator::PoolingOperator(int width, int stride, IOperator input)
     : Operator(computeOutputDims(input->dims(), width, stride), {input}),
       width_(width),

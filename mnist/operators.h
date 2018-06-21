@@ -222,7 +222,6 @@ class FCLayerOperator : public Operator {
 };
 
 /// Do padding to keep output size the same as input size
-// TODO: add regularization
 class ConvolutionLayerOperator : public Operator {
  public:
   ConvolutionLayerOperator(int channel, int width, IOperator input);
@@ -250,6 +249,9 @@ class ConvolutionLayerOperator : public Operator {
   GradientPair gradientFunc(BackPropOperator*) override;
 
   std::function<Tensor*()> getParameters() override;
+
+  void read(std::istream& in) override;
+  void write(std::ostream& out) const override;
 
   Tensor w_;
   Tensor b_;
