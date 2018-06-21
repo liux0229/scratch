@@ -6,7 +6,7 @@ Work log:
   * [P1] Associate gradient with the Tensor 
 * [P0] Performance optimizations - so I can train more iterations faster so I can easily tune the algorithm;
   * [P0] Optimize convolve
-     * Add consider other techniques
+     * Add consider other techniques. This requires further improvements. 
   * [P2] O(n^2.8) matrix multiplication algorithm
   * [P1] Try accessing RHS matrix row wise and measure cache misses. 
   * [P2] Layout matrix in cache friendly ways
@@ -15,9 +15,8 @@ Work log:
     * Multi-channel pooling (e.g. invariant to rotations)
     * Out of boundary pixel values: does the choice of default value matter?
     * Initialization strategy
-    * Model reloading
     * Static config access
-      * I have some use case for it.
+      * Is this still necessary?
     * Check the first layer learned edges.
   * Different families of ReLu
     * DReLu: https://openreview.net/forum?id=H1DGha1CZ
