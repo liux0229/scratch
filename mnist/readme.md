@@ -5,7 +5,7 @@ Work log:
   * [P2] Write more unit tests for Tensor. e.g. operator+. 
   * [P1] Associate gradient with the Tensor 
 * [P0] Performance optimizations - so I can train more iterations faster so I can easily tune the algorithm;
-  * [P1] Optimize convolve ConvolutionalLayer (further work; requires new profiling)
+  * [P2] Optimize convolve ConvolutionalLayer (further work; requires new profiling)
   * [P2] O(n^2.8) matrix multiplication algorithm
   * [P1] Try accessing RHS matrix row wise and measure cache misses. 
   * [P2] Layout matrix in cache friendly ways
