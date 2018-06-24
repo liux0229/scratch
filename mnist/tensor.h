@@ -259,6 +259,13 @@ class TransposedMatrix {
 
 class MatrixPatch {
  public:
+  struct Box {
+    Dim r1;
+    Dim c1;
+    Dim r2;
+    Dim c2;
+  };
+
   MatrixPatch(
       Matrix& m,
       Dim ro,
@@ -271,7 +278,17 @@ class MatrixPatch {
         co_(co),
         rows_(rows),
         cols_(cols),
-        direction_(reverse ? -1 : 1) {}
+        direction_(reverse ? -1 : 1) {
+    if (!reverse) {
+      SCHECK(
+          ro < m.rows() && co < m.cols() && ro + rows - 1 >= 0 &&
+          co + cols - 1 >= 0);
+    } else {
+      SCHECK(
+          ro >= 0 && co >= 0 && ro - rows + 1 < m.rows() &&
+          co - cols + 1 < m.cols());
+    }
+  }
   Dim rows() const {
     return rows_;
   }
@@ -308,6 +325,56 @@ class MatrixPatch {
     return std::make_tuple(ret, targetR(maxI), targetC(maxJ));
   }
 
+  bool reverse() const {
+    return direction_ == -1;
+  }
+
+  Box shrinkToFit() const {
+    Box box;
+    if (!reverse()) {
+      box.r1 = std::max(0, 0 - ro_);
+      box.c1 = std::max(0, 0 - co_);
+      box.r2 = std::max(0, ro_ + rows_ - m_->rows());
+      box.c2 = std::max(0, co_ + cols_ - m_->cols());
+    } else {
+      box.r1 = std::max(0, ro_ - (m_->rows() - 1));
+      box.c1 = std::max(0, co_ - (m_->cols() - 1));
+      box.r2 = std::max(0, 0 - (ro_ - rows_ + 1));
+      box.c2 = std::max(0, 0 - (co_ - cols_ + 1));
+    }
+    return box;
+  }
+
+  MatrixPatch applyBoundingBox(const Box& x) const {
+    if (!reverse()) {
+      return MatrixPatch(
+          *m_,
+          ro_ + x.r1,
+          co_ + x.c1,
+          rows_ - (x.r1 + x.r2),
+          cols_ - (x.c1 + x.c2),
+          false);
+    } else {
+      return MatrixPatch(
+          *m_,
+          ro_ - x.r1,
+          co_ - x.c1,
+          rows_ - (x.r1 + x.r2),
+          cols_ - (x.c1 + x.c2),
+          true);
+    }
+  }
+
+  Dim ro() const {
+    return ro_;
+  }
+  Dim co() const {
+    return co_;
+  }
+  Matrix& m() const {
+    return *m_;
+  }
+
  private:
   int targetR(Dim r) const {
     return ro_ + direction_ * r;
@@ -325,6 +392,15 @@ class MatrixPatch {
   int direction_;
 };
 
+inline MatrixPatch::Box max(
+    const MatrixPatch::Box& a,
+    const MatrixPatch::Box& b) {
+  return MatrixPatch::Box{std::max(a.r1, b.r1),
+                          std::max(a.c1, b.c1),
+                          std::max(a.r2, b.r2),
+                          std::max(a.c2, b.c2)};
+}
+
 inline std::ostream& operator<<(std::ostream& out, const MatrixPatch& m) {
   out << "[";
   for (int r = 0; r < m.rows(); ++r) {
@@ -339,20 +415,81 @@ inline std::ostream& operator<<(std::ostream& out, const MatrixPatch& m) {
 }
 
 // TODO: skip lopping through the areas that have value 0.
-inline Float dot(const MatrixPatch& a, const MatrixPatch& b) {
-  SCHECK(a.rows() == b.rows() && a.cols() == b.cols());
+// (and directly operate in the target coordinate space)
+inline Float dotDirect(const MatrixPatch& a, const MatrixPatch& b) {
   // std::cout << "dot " << a << " . " << b << ": ";
   Float s = 0;
   for (Dim i = 0; i < a.rows(); ++i) {
     for (Dim j = 0; j < a.cols(); ++j) {
       // if (a(i, j) * b(i, j) != 0) {
       //   std::cout << " + " << a(i, j) * b(i, j);
-      //}
+      // }
       s += a(i, j) * b(i, j);
     }
   }
   // std::cout << std::endl;
   return s;
+}
+
+inline Float dotUnrolledForward(const MatrixPatch& a, const MatrixPatch& b) {
+  // SCHECK(a.rows() == b.rows() && a.cols() == b.cols());
+  Float s = 0;
+  for (auto ra = a.ro(), rb = b.ro(), i = 0; i < a.rows(); ++i, ++ra, ++rb) {
+    for (auto ca = a.co(), cb = b.co(), j = 0; j < a.cols(); ++j, ++ca, ++cb) {
+      // std::cout << " + " << a.m()(ra, ca) * b.m()(rb, cb);
+      s += a.m()(ra, ca) * b.m()(rb, cb);
+    }
+  }
+  // std::cout << std::endl;
+  return s;
+}
+
+inline Float dotUnrolledBackward(const MatrixPatch& a, const MatrixPatch& b) {
+  // SCHECK(a.rows() == b.rows() && a.cols() == b.cols());
+  Float s = 0;
+  for (auto ra = a.ro(), rb = b.ro(), i = 0; i < a.rows(); ++i, ++ra, --rb) {
+    for (auto ca = a.co(), cb = b.co(), j = 0; j < a.cols(); ++j, ++ca, --cb) {
+      s += a.m()(ra, ca) * b.m()(rb, cb);
+    }
+  }
+  return s;
+}
+
+inline Float dotUnrolled(MatrixPatch a, MatrixPatch b) {
+  // std::cout << a.ro() << " " << a.co() << " " << a.rows() << " " << a.cols()
+  //           << " " << a.m().rows() << " " << a.m().cols() << std::endl;
+  // std::cout << b.ro() << " " << b.co() << " " << b.rows() << " " << b.cols()
+  //           << " " << b.m().rows() << " " << b.m().cols() << std::endl;
+
+  auto box = max(a.shrinkToFit(), b.shrinkToFit());
+  a = a.applyBoundingBox(box);
+  b = b.applyBoundingBox(box);
+
+  // std::cout << box.r1 << " " << box.c1 << " " << box.r2 << " " << box.c2
+  //           << std::endl;
+  // std::cout << a.ro() << " " << a.co() << " " << a.rows() << " " << a.cols()
+  //           << " " << a.m().rows() << " " << a.m().cols() << std::endl;
+  // std::cout << b.ro() << " " << b.co() << " " << b.rows() << " " << b.cols()
+  //           << " " << b.m().rows() << " " << b.m().cols() << std::endl;
+
+  if (!b.reverse()) {
+    return dotUnrolledForward(a, b);
+  } else {
+    return dotUnrolledBackward(a, b);
+  }
+}
+
+inline Float dot(const MatrixPatch& a, const MatrixPatch& b) {
+  SCHECK(a.rows() == b.rows() && a.cols() == b.cols());
+// auto s1 = dotDirect(a, b);
+// auto s2 = dotUnrolled(a, b);
+// SCHECK_MSG(s1 == s2, folly::format("{} vs {}", s1, s2).str());
+// return s1;
+#if 0
+  return dotDirect(a, b);
+#else
+  return dotUnrolled(a, b);
+#endif
 }
 
 template <typename T1, typename T2>
