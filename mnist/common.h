@@ -334,7 +334,7 @@ class ExampleRange {
     return (*v_)[x];
   }
 
-  std::vector<ExampleRange> split(int n) const {
+  std::vector<ExampleRange> splitToNBatches(int n) const {
     SCHECK(n >= 1);
     n = std::min(n, size());
     auto b = size() / n;
@@ -347,6 +347,22 @@ class ExampleRange {
     }
     ret.push_back(ExampleRange(
         *v_, (start_ + (n - 1) * b) % v_->size(), size() - (n - 1) * b));
+    return ret;
+  }
+
+  std::vector<ExampleRange> splitByBatchSize(int batchSize) const {
+    SCHECK(batchSize >= 1 && batchSize <= size());
+    SCHECK(start_ + size() <= v_->size()); // ensure does not wrap around
+
+    std::vector<ExampleRange> ret;
+
+    int start = 0;
+    while (start < size()) {
+      auto end = std::min(size(), start + batchSize);
+      ret.push_back(ExampleRange(*v_, start_ + start, end - start));
+      start = end;
+    }
+
     return ret;
   }
 

@@ -11,8 +11,8 @@ using namespace std;
 
 class ForwardPassModel : public Model {
  public:
-  ForwardPassModel(IInputOperator input, IOperator output)
-      : input_(input), output_(output) {
+  ForwardPassModel(IInputOperator input, IOperator output, int batchSize)
+      : input_(input), output_(output), batchSize_(batchSize) {
     // Sort the operators topologically
     forwardOrder_ = GraphBuilder::topologicalSort(input, output);
     // for (auto op : forwardOrder_) {
@@ -23,9 +23,8 @@ class ForwardPassModel : public Model {
   vector<Prediction> predict(const ExampleList& examples) const override {
     vector<Prediction> ret(examples.size());
 
-    auto T = TaskRunner::get().nThreads();
-    auto batches = ExampleRange{examples}.split(T);
-    T = batches.size();
+    auto batches = ExampleRange{examples}.splitByBatchSize(batchSize_);
+    int T = batches.size();
 
     vector<TaskRunner::Task> tasks;
     for (int i = 0; i < T; ++i) {
@@ -71,6 +70,7 @@ class ForwardPassModel : public Model {
   IInputOperator input_;
   IOperator output_;
   OperatorList forwardOrder_;
+  int batchSize_;
 };
 
 struct Loss {
@@ -162,6 +162,8 @@ class JsonArrayWriter {
 };
 } // namespace
 
+void printTensorStats();
+
 class SGDTrainer {
  public:
   SGDTrainer(
@@ -215,11 +217,12 @@ class SGDTrainer {
     int exampleIndex = 0;
 
     for (int i = 0; i < trainingConfig_.iterations; ++i) {
-      // cout << "i=" << i << endl;
       printTotalLoss(i);
+      // printTensorStats();
+
       printEvaluationResult(i);
 
-      auto batch = prepareBatch(exampleIndex);
+      auto batch = prepareMiniBatch(exampleIndex);
       auto g = computeGradient(batch);
 
       if (trainingConfig_.diagnosticsConfig.verifyGradient) {
@@ -238,8 +241,8 @@ class SGDTrainer {
     }
   }
 
-  ExampleRange prepareBatch(int& start) {
-    const int K = trainingConfig_.batchSize;
+  ExampleRange prepareMiniBatch(int& start) {
+    const int K = trainingConfig_.miniBatchSize;
     const int N = examples_.size();
 
     auto ret = ExampleRange(examples_, start, K);
@@ -337,7 +340,8 @@ class SGDTrainer {
   void printEvaluationResult(int i) {
     if (evaluator_ &&
         i % trainingConfig_.diagnosticsConfig.testErrorIterations == 0) {
-      auto model = make_shared<ForwardPassModel>(input_, output_);
+      auto model = make_shared<ForwardPassModel>(
+          input_, output_, trainingConfig_.evaluationBatchSize);
       cout << folly::format(
                   "i={} test error rate={}%", i, evaluator_(model) * 100)
            << endl;
@@ -387,10 +391,9 @@ class SGDTrainer {
   }
 
   Float runForwardPassAndComputeLoss(ExampleRange batch) const {
-    int T = TaskRunner::get().nThreads();
-    auto batches = batch.split(T);
+    auto batches = batch.splitByBatchSize(trainingConfig_.evaluationBatchSize);
     // cout << "Threaded batch size: " << batches.size() << endl;
-    T = batches.size();
+    int T = batches.size();
 
     lossOp_->setWeight(1.0 / batch.size());
     vector<Float> losses(T, 0.0);
@@ -434,7 +437,7 @@ class SGDTrainer {
     lossOp_->setWeight(1.0 / batch.size());
 
     int T = TaskRunner::get().nThreads();
-    auto batches = batch.split(T);
+    auto batches = batch.splitToNBatches(T);
     T = batches.size();
 
     vector<TaskRunner::Task> tasks;
@@ -579,7 +582,8 @@ IModel Trainer::train(
 
   cout << trainingConfig << endl;
 
-  auto model = make_shared<ForwardPassModel>(ops.first, ops.second);
+  auto model = make_shared<ForwardPassModel>(
+      ops.first, ops.second, trainingConfig.evaluationBatchSize);
   if (trainingConfig.modelArch.readModelFrom != "") {
     ifstream in(trainingConfig.modelArch.readModelFrom);
     SCHECK(!in.fail());

@@ -6,6 +6,17 @@
 
 using namespace std;
 
+atomic<long> nTensors{0};
+atomic<long> tensorBytesCreated{0};
+atomic<long> tensorBytesTotal{0};
+
+void printTensorStats() {
+  cout << "nTensors = " << nTensors << endl;
+  cout << "avg Tensor size = " << tensorBytesCreated / nTensors << endl;
+  cout << "total Tensor size = " << tensorBytesTotal / 1024.0 / 1024.0 << " M"
+       << endl;
+}
+
 void UniformInitScheme::init(Tensor& t) {
   uniform_real_distribution<> dist(a_, b_);
   for (auto& x : t.data()) {
@@ -16,8 +27,20 @@ void UniformInitScheme::init(Tensor& t) {
 void Tensor::createStorage() {
   int n = dimSize(dims_);
 
-  // Zero-init is required
+// Zero-init is required
+#if 1
   data_ = shared_ptr<Float>{new Float[n](), std::default_delete<Float[]>{}};
+#else
+  ++nTensors;
+  auto* p = new Float[n]();
+  tensorBytesCreated += n * sizeof(Float);
+  tensorBytesTotal += n * sizeof(Float);
+  data_ = shared_ptr<Float>{p, [n](Float* x) {
+                              --nTensors;
+                              tensorBytesTotal -= n * sizeof(Float);
+                              delete[] x;
+                            }};
+#endif
   // data_ = vector<Float>(n);
 }
 
@@ -142,6 +165,7 @@ Tensor Tensor::operator[](Dim x) const {
   SCHECK(dims_.size() > 1);
   SCHECK(x < dims_[0]);
 
+  // Avoid the excessive vector creation?
   Dims dims{dims_.begin() + 1, dims_.end()};
 
   return Tensor{dims,

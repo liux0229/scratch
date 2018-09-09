@@ -1,3 +1,5 @@
+load("@fbcode_macros//build_defs:auto_headers.bzl", "AutoHeaders")
+
 cpp_library(
     name = "mnist_lib",
     srcs = [

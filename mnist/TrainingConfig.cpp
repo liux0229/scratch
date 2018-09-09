@@ -33,9 +33,9 @@ ostream& operator<<(ostream& out, const TrainingConfig& trainingConfig) {
   out << trainingConfig.modelArch << " " << trainingConfig.learningRateStrategy
       << " " << trainingConfig.regularizerConfig << " "
       << folly::format(
-             "iterations={} batch={}",
+             "iterations={} miniBatch={}",
              trainingConfig.iterations,
-             trainingConfig.batchSize);
+             trainingConfig.miniBatchSize);
   return out;
 }
 
@@ -81,7 +81,9 @@ TrainingConfig TrainingConfig::read(istream& in) {
       {"evaluationConfig",
        OP(config.evaluationConfig = EvaluationConfig::read(in);)},
       {"iterations", OP(config.iterations = expect<int>(in);)},
-      {"batchSize", OP(config.batchSize = expect<int>(in);)},
+      {"miniBatchSize", OP(config.miniBatchSize = expect<int>(in);)},
+      {"evaluationBatchSize",
+       OP(config.evaluationBatchSize = expect<int>(in);)},
       {"writeModelTo", OP(config.writeModelTo = readString(in);)},
       {"threads", OP(config.threads = expect<int>(in);)},
   };

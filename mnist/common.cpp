@@ -39,6 +39,7 @@ ExampleReader::ExampleReader(string image, string label)
   assert(magic == 0x00000801);
 
   numExample_ = readInt(image_);
+  // cout << "numExample_ = " << numExample_ << endl;
   int n = readInt(label_);
   assert(numExample_ == n);
 }

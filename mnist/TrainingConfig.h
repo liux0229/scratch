@@ -112,7 +112,8 @@ struct TrainingConfig {
   DiagnosticsConfig diagnosticsConfig;
   EvaluationConfig evaluationConfig;
   int iterations;
-  int batchSize;
+  int miniBatchSize;
+  int evaluationBatchSize;
   std::string writeModelTo;
   int threads;
 };
