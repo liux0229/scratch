@@ -13,6 +13,7 @@ Work log:
   * [P2] O(n^2.8) matrix multiplication algorithm
   * [P1] Try accessing RHS matrix row wise and measure cache misses. 
   * [P2] Layout matrix in cache friendly ways
+  * [P0] Why is average Tensor size 30 M but theoretically it should be only 30 * 40 * 28 * 28 * 8 = 8 M?
 * Model architecture
   * CNN 
     * Multi-channel pooling (e.g. invariant to rotations)
