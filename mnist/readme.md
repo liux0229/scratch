@@ -13,6 +13,7 @@ Work log:
   * [P2] O(n^2.8) matrix multiplication algorithm
   * [P1] Try accessing RHS matrix row wise and measure cache misses. 
   * [P2] Layout matrix in cache friendly ways
+  * [P0] Why is average Tensor size 30 M but theoretically it should be only 30 * 40 * 28 * 28 * 8 = 8 M?
 * Model architecture
   * CNN 
     * Multi-channel pooling (e.g. invariant to rotations)
@@ -35,6 +36,7 @@ Work log:
   * Initialization
     * Gaussian fill for NN weights (may not work because training error was already low).
 * Tooling & program control
+  * [P0] Incorporate memory profiling debugging: https://fb.quip.com/MkODA3sHC4PO
   * [P1] Model loading: also prints architecture so can more easily recover from past runs.
     * Include the arch description in the model output so we know exactly the run that produced the model. 
   * [P2] Config supports reading multiple entries to perform multiple runs.
