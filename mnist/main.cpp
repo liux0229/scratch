@@ -14,18 +14,7 @@ void setup() {
   feenableexcept(FE_INVALID | FE_OVERFLOW);
 }
 
-extern atomic<int> nTensors;
-
-class Guard {
- public:
-  ~Guard() {
-    cout << "nTensors = " << nTensors << endl;
-  }
-};
-
 int main() {
-  Guard g;
-
   setup();
   ifstream configFile("training.config");
   SCHECK(configFile.good());
@@ -49,5 +38,5 @@ int main() {
         return evaluator.evaluate(model, testSample).errorRate;
       });
 
-  // cout << evaluator.evaluate(model, testSample) << endl;
+  cout << evaluator.evaluate(model, testSample) << endl;
 }
