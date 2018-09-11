@@ -45,6 +45,7 @@ Work log:
     * [P1] Activation stats 
   * Shut down training through C-c
   * Dead ReLu
+  * Display the feature maps from the CNN layer
 
 Notes:
   * Useful links
