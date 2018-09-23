@@ -28,7 +28,7 @@ Work log:
         * Perform gradient ascent to find an input image that can maximize the output of a filter (can take the average of the output image pixels)
       * https://www.youtube.com/watch?v=cNBBNAxC8l4&index=22&list=PLZbbT5o_s2xq7LwI2y8_QtvuXZedL6tQU
         * Visualize the output from an input image
-        * Find out the input impage that results in the maximum layer output
+        * Find out the input impage that results in the maximum filter output
   * Different families of ReLu
     * DReLu: https://openreview.net/forum?id=H1DGha1CZ
 * Numeric stability
