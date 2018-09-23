@@ -23,6 +23,7 @@ Work log:
     * Static config access
       * Is this still necessary?
     * Check the first layer learned edges.
+      * http://cs231n.github.io/understanding-cnn/
   * Different families of ReLu
     * DReLu: https://openreview.net/forum?id=H1DGha1CZ
 * Numeric stability
