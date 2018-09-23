@@ -26,6 +26,9 @@ Work log:
       * http://cs231n.github.io/understanding-cnn/
       * https://jacobgil.github.io/deeplearning/filter-visualizations
         * Perform gradient ascent to find an input image that can maximize the output of a filter (can take the average of the output image pixels)
+      * https://www.youtube.com/watch?v=cNBBNAxC8l4&index=22&list=PLZbbT5o_s2xq7LwI2y8_QtvuXZedL6tQU
+        * Visualize the output from an input image
+        * Find out the input impage that results in the maximum layer output
   * Different families of ReLu
     * DReLu: https://openreview.net/forum?id=H1DGha1CZ
 * Numeric stability
