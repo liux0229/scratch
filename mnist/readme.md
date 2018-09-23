@@ -24,6 +24,8 @@ Work log:
       * Is this still necessary?
     * Check the first layer learned edges.
       * http://cs231n.github.io/understanding-cnn/
+      * https://jacobgil.github.io/deeplearning/filter-visualizations
+        * Perform gradient ascent to find an input image that can maximize the output of a filter (can take the average of the output image pixels)
   * Different families of ReLu
     * DReLu: https://openreview.net/forum?id=H1DGha1CZ
 * Numeric stability
