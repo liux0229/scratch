@@ -17,6 +17,7 @@ Work log:
   * [P0] Avoid the excessive vector creation?
 * Model architecture
   * CNN 
+    * [P0] Check CNN & pooling rounding cases (e.g. 7x7 -> 4x4 pooling layer)
     * Multi-channel pooling (e.g. invariant to rotations)
     * Out of boundary pixel values: does the choice of default value matter?
     * Initialization strategy
