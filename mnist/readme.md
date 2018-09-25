@@ -47,8 +47,9 @@ Work log:
     * Gaussian fill for NN weights (may not work because training error was already low).
 * Tooling & program control
   * [P0] Incorporate memory profiling debugging: https://fb.quip.com/MkODA3sHC4PO
-  * [P1] Model loading: also prints architecture so can more easily recover from past runs.
+  * [P0] Model loading: also prints architecture so can more easily recover from past runs.
     * Include the arch description in the model output so we know exactly the run that produced the model. 
+      * Use it to debug the same model output example.
   * [P2] Config supports reading multiple entries to perform multiple runs.
   * [P0] Learning curve
     * [P1] Activation stats 
