@@ -31,7 +31,7 @@ Work log:
         * Visualize the output from an input image
           * It's unclear what the dog face detection example is actually visualizing
         * Find out the input impage that results in the maximum filter output
-      * It would be good to reason about what the second layer CNN is actually learning but observing how it uses first layer activations. e.g. combining multiple edges to form a rectangle; how does the pooling layer fit into the picture?
+      * It would be good to reason about what the second layer CNN is actually learning by observing how it uses first layer activations. e.g. combining multiple edges to form a rectangle; how does the pooling layer fit into the picture?
       * First, being able to express the "finding examples that maximize a filter output" in C++; later think about whether we need to generalize into control through Python. 
   * Different families of ReLu
     * DReLu: https://openreview.net/forum?id=H1DGha1CZ
