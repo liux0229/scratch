@@ -33,6 +33,7 @@ Work log:
         * Find out the input impage that results in the maximum filter output
       * It would be good to reason about what the second layer CNN is actually learning by observing how it uses first layer activations. e.g. combining multiple edges to form a rectangle; how does the pooling layer fit into the picture?
       * First, being able to express the "finding examples that maximize a filter output" in C++; later think about whether we need to generalize into control through Python. 
+      * Fix the bug: [ 10 1 3 3 ] 90 0 90
   * Different families of ReLu
     * DReLu: https://openreview.net/forum?id=H1DGha1CZ
 * Numeric stability
