@@ -55,7 +55,7 @@ class Operator {
   virtual void attachRegularizer(RegularizerOperator& regularizer) {}
 
   virtual void read(std::istream& in) {
-    expectToken(in, name());
+    expectLine(in, name());
   }
   virtual void write(std::ostream& out) const {
     out << name() << std::endl;

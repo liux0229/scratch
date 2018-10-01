@@ -219,6 +219,21 @@ void expectToken(istream& in, string expected) {
       folly::format("Expect {}; received {}", expected, token));
 }
 
+void expectLine(istream& in, string expected) {
+  while (!in.eof() && std::isspace(in.peek())) {
+    auto ch = in.get();
+    if (ch == '\n') {
+      break;
+    }
+  }
+
+  string token;
+  getline(in, token);
+  SCHECK_MSG(
+      token == expected,
+      folly::format("Expect {}; received {}", expected, token));
+}
+
 template <typename T>
 T expect(istream& in) {
   T x;
@@ -269,6 +284,12 @@ std::istream& operator>>(std::istream& in, std::vector<T>& v) {
     v.push_back(x);
   }
 
+  return in;
+}
+
+inline std::istream& operator>>(std::istream& in, Dims& v) {
+  in >> static_cast<Dims::Base&>(v);
+  v.computeDimSize();
   return in;
 }
 

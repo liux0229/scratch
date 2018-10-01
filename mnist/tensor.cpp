@@ -42,6 +42,7 @@ void Tensor::createStorage() {
                             }};
 #endif
   // data_ = vector<Float>(n);
+  // cout << "createStorage: " << dims_ << " " << n << " " << data().size() << endl;
 }
 
 Tensor::Tensor(const Tensor& t) : dims_(t.dims_) {
