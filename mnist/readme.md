@@ -63,3 +63,5 @@ Notes:
   * Useful links
     * https://matplotlib.org/users/image_tutorial.html
     * MNIST dataset reader in Python: https://github.com/hsjeong5/MNIST-for-Numpy/blob/master/mnist.py
+  * Insigts
+    * MLP = N channel CNN with an image size filter per input channel
