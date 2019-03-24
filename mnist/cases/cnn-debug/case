@@ -1,0 +1,29 @@
+  modelArch = {
+    cnnLayer = {
+      width = 3
+      channel = 32
+    }
+    poolLayer = {
+      width = 2
+      stride = 2
+    }
+    cnnLayer = {
+      width = 3
+      channel = 64
+    }
+    poolLayer = {
+      width = 2
+      stride = 2
+    }
+    cnnLayer = {
+      width = 3
+      channel = 64
+    }
+    poolLayer = {
+      width = 2
+      stride = 2
+    }
+    fcLayer = {
+      hiddenLayerDims = { 64 }
+    }
+  }
