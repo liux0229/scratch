@@ -1,0 +1,16 @@
+  modelArch = {
+    cnnLayer = {
+      width = 3
+      channel = 2
+    }
+    poolLayer = {
+      width = 2
+      stride = 2
+    }
+    fcLayer = {
+      hiddenLayerDims = { 5 }
+    }
+  }
+  learningRateStrategy = {
+    alpha = 0.1
+  }
