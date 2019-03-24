@@ -39,7 +39,8 @@ Work log:
 * Numeric stability
   * Overflow problem: can gradient be a very large number (e.g. would capping gradient computation, e.g. matrix multiplication, still be correct?)
 * Optimization algorithm improvement:
-  * [P1] Try AdaGrad on the current optimization problem 
+  * [P0] Try AdaGrad on the current optimization problem 
+    * This may be the key to solve CNN convergence: the gradients for convolutional and MLP layers are at very differnt scales, demanding using adaptive learning rates for them. 
   * [P1] LARS: https://arxiv.org/pdf/1708.03888.pdf
   * [P0] Input normalization
     * Batch normalization
