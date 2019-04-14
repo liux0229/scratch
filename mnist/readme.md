@@ -49,6 +49,7 @@ Work log:
   * Initialization
     * Gaussian fill for NN weights (may not work because training error was already low).
     * Why cannot we break symmetry by initializing the bias term randomly? 
+    * Truncated normal distribution
 * Tooling & program control
   * [P0] Incorporate memory profiling debugging: https://fb.quip.com/MkODA3sHC4PO
   * [P0] Model loading: also prints architecture so can more easily recover from past runs.
